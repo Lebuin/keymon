@@ -47,6 +47,7 @@ function testValidation() {
     assertEqual(problem({overlay: {origin_h: 'top'}}), 'overlay.origin_h must be left, center, or right, not "top"', 'a bad choice is named');
     assertEqual(problem({keys: {max_runs: 1.5}}), 'keys.max_runs must be a whole number of 1 or more, not 1.5', 'max_runs must be whole');
     assertEqual(problem({mouse: {click: {fill_color: 'nope'}}}), 'mouse.click.fill_color must be a colour, not "nope"', 'a bad fill is named');
+    assertEqual(problem({box: {enter_scale: 1.5}}), 'box.enter_scale must be a number from 0 to 1, not 1.5', 'enter_scale is limited');
     assertEqual(problem({mouse: {click: {left_style: 'ripple'}}}), null, 'left_style takes ripple');
     assertEqual(problem({mouse: {click: {left_style: 'disc'}}}), 'mouse.click.left_style must be drawing or ripple, not "disc"', 'a bad left_style is named');
     assertEqual(problem({mouse: {colors: {left: 'nope'}, ripple: {}}}), null, 'settings from before mouse.click are ignored');

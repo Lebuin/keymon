@@ -6,7 +6,7 @@ import GLib from 'gi://GLib';
 import System from 'system';
 
 import {KeyResolver, loadKeymap, parseXkbId} from '../extension/keymap.js';
-import {placeRows, runItems, textMarkup} from '../extension/layout.js';
+import {boxHeight, enteringPivot, enteringY, placeRows, restingItems, runItems, textMarkup} from '../extension/layout.js';
 
 let failed = 0;
 
@@ -101,6 +101,13 @@ function testPlacement() {
         [{x: 550, y: 50}], 'rows leaving the top are dropped');
     eq(placeRows(monitor, rows, {...overlay, offset_y: 0}, 'down'),
         [{x: 550, y: 510}], 'rows leaving the bottom are dropped');
+    eq(placeRows(monitor, rows, {...overlay, offset_y: 0}, 'down', false).length, rows.length,
+        'with clip off, rows that leave the monitor are placed too');
+    eq(enteringPivot('right', 'up'), {x: 1, y: 0}, 'zooms from the top right when right aligned going up');
+    eq(enteringPivot('left', 'down'), {x: 0, y: 1}, 'and from the bottom left when left aligned going down');
+    eq(enteringPivot('center', 'up'), {x: 0.5, y: 0}, 'a centred row zooms from the middle of its edge');
+    eq(enteringY(500, 40, 8, 'up'), 548, 'a new row starts one row below when older rows go up');
+    eq(enteringY(500, 40, 8, 'down'), 452, 'and one row above when they go down');
     eq(placeRows(monitor, [rows[0]], {...overlay, offset_y: 500}, 'up').length, 1,
         'the newest row is kept even off the monitor');
 }
@@ -112,6 +119,12 @@ function testMarkup() {
         {text: '&', held: false, muted: true},
         {text: '⏎', held: true, muted: true},
     ];
+    eq(boxHeight(37, 26.25, 5), 37, 'a plain line keeps its height');
+    eq(boxHeight(39, 26.25, 5), 37, 'a taller symbol does not add height');
+    eq(boxHeight(63, 26.25, 5), 63, 'two lines are two line heights');
+    eq(boxHeight(10, 26.25, 5), 37, 'there is always at least one line');
+    eq(restingItems(items).map(item => item.held), [false, false, false, false], 'nothing is held at rest');
+    eq(restingItems(items).map(item => item.text), items.map(item => item.text), 'and the text stays');
     const wrapped = content => `<span insert_hyphens="false" line_height="30720">\u2060${content}</span>`;
     eq(textMarkup(items, {held: '#ff0000ff', muted: '#00ff00ff'}, 28, 30),
         wrapped('a<span foreground="#ff0000ff">&lt;</span><span foreground="#00ff00ff">&amp;</span>' +

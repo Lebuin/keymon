@@ -159,13 +159,18 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 - In a modifier run, each part is coloured separately, and the `+` keeps `text.color`.
 - In a text run, only the characters or tokens whose keys are held are coloured, and of a repeating key only the latest one, and this takes priority over `text.muted_color`. The box needs per-character styling, and text must be escaped if this uses Pango markup.
 - The colour reverts as soon as the key is released, including for left and right variants once neither is held.
+- A box is measured without held colours, so that they never change its size. Its height depends only on its number of lines, so that a symbol from another font or at another size doesn't change it.
 
 ### Stack
 
 - The newest run sits at the anchor point. A new run moves the older ones by one row, in the direction set by `keys.stack_direction` (`up` or `down`).
-- When a run disappears, it fades out over `box.fade_out_ms`. It keeps its place in the stack while it fades, so new rows still push it along, and the runs further from the anchor close the gap when the fade ends.
-- Movement is instant, with no animation. A row replaced in place (see "Shift and AltGr") doesn't fade.
-- There are at most `keys.max_runs` rows. Past that limit, or when a row would leave the monitor, the oldest run is removed early and at once, with no fade. The newest run is never removed this way.
+- A row added while no other row is on screen, not even one fading out, appears at once with no animation.
+- Any other new row fades in over `box.animation_ms` while sliding to the anchor point from the place one row further along the other way, and the older rows slide to their new places at the same time.
+- A new row also zooms in from `box.enter_scale` over the same time. It zooms from the edge it aligns to (`overlay.anchor_h`, the middle of the row when `center`) and from its top edge when `keys.stack_direction` is `up`, or its bottom edge when `down`. Right aligned and `up` zooms from the top right corner.
+- A run added during that animation waits, and its row starts when the animation ends, one at a time in order. Its text stays up to date while it waits, and a run that ends or is removed before its turn never appears. `0` shows new rows at once.
+- When a run disappears, it fades out over `box.animation_ms`. It keeps its place in the stack while it fades, so new rows still push it along, and the runs further from the anchor slide over the gap when the fade ends.
+- Other movement is instant, such as a row growing sideways or wrapping onto another line. A row replaced in place (see "Shift and AltGr") doesn't fade.
+- There are at most `keys.max_runs` rows. Past that limit, or when a row would leave the monitor, the oldest run is removed early, and fades out like any other. The newest run is never removed this way.
 
 ### Text runs
 
@@ -319,11 +324,12 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `overlay.offset_x` | `0` | Horizontal shift in px |
 | `overlay.offset_y` | `-80` | Vertical shift in px |
 | `overlay.row_spacing` | `8` | Gap between rows in px |
-| `box.background` | `"rgba(0,0,0,0.75)"` | Box background |
+| `box.background` | `"rgba(0,0,0,0.8)"` | Box background |
 | `box.padding_h` | `16` | Horizontal padding in px |
 | `box.padding_v` | `8` | Vertical padding in px |
 | `box.corner_radius` | `12` | Corner radius in px |
-| `box.fade_out_ms` | `200` | Fade-out when a box is removed. `0` removes it at once |
+| `box.animation_ms` | `150` | Time a new box takes to fade, slide, and zoom in, the others to make room, and a removed box to fade out. `0` turns all of these off |
+| `box.enter_scale` | `0.5` | Size a new box zooms in from, as a fraction of its full size. `1` doesn't zoom |
 | `box.max_width` | `800` | Maximum box width in px, including padding. Wider content wraps onto more lines |
 | `text.color` | `"#ffffff"` | Text colour |
 | `text.held_color` | `"#ffcc00"` | Optional text colour for keys currently held. `null` uses `text.color` |

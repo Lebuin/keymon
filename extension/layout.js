@@ -9,8 +9,9 @@ const FRACTION = {left: 0, top: 0, center: 0.5, right: 1, bottom: 1};
 // overlay and direction are the overlay config and keys.stack_direction. The
 // origin is a point on the monitor, the offset moves on from there, and the
 // newest row's anchor point goes on the result. Returns
-// [{x, y}] for the rows that fit. The newest row is always included.
-export function placeRows(monitor, sizes, overlay, direction) {
+// [{x, y}] for the rows that fit, or for all of them if clip is false. The newest row
+// is always included.
+export function placeRows(monitor, sizes, overlay, direction, clip = true) {
     const anchorH = FRACTION[overlay.anchor_h];
     const anchorV = FRACTION[overlay.anchor_v];
     const pointX = monitor.x + monitor.width * FRACTION[overlay.origin_h] + overlay.offset_x;
@@ -26,11 +27,23 @@ export function placeRows(monitor, sizes, overlay, direction) {
         else
             y += sizes[index - 1].height + overlay.row_spacing;
 
-        if (index > 0 && (y < monitor.y || y + height > monitor.y + monitor.height))
+        if (clip && index > 0 && (y < monitor.y || y + height > monitor.y + monitor.height))
             break;
         positions.push({x: Math.round(pointX - width * anchorH), y: Math.round(y)});
     }
     return positions;
+}
+
+// Where a row sliding in starts: the place a row before the newest would have, so it
+// moves by the same distance as the rows it pushes along.
+export function enteringY(y, height, spacing, direction) {
+    return direction === 'up' ? y + height + spacing : y - height - spacing;
+}
+
+// The point a row zooms in from, as fractions of its size. It stays on the edge the
+// row aligns to sideways, and on the edge facing the older rows.
+export function enteringPivot(anchorH, direction) {
+    return {x: FRACTION[anchorH], y: direction === 'up' ? 0 : 1};
 }
 
 // Fonts draw this symbol much larger than the text around it. Clutter ignores
@@ -48,6 +61,19 @@ export function runItems(run) {
         ...(index > 0 ? [{text: '+', held: false, muted: true}] : []),
         {text: label, held, muted: true},
     ]);
+}
+
+// The same items with nothing held. A box is measured with these, so that a highlight
+// coming and going can't change its size.
+export function restingItems(items) {
+    return items.map(item => ({...item, held: false}));
+}
+
+// A box's height from its measured height: whole lines and padding. Symbols from other
+// fonts or at other sizes can make a line a little taller, which this leaves out.
+export function boxHeight(measured, lineHeight, padding) {
+    const lines = Math.max(Math.round((measured - 2 * padding) / lineHeight), 1);
+    return Math.ceil(lines * lineHeight) + 2 * padding;
 }
 
 // Pango markup for a box's items. colors holds Pango colours for held and muted

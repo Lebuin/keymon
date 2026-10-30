@@ -11,11 +11,12 @@
     "row_spacing": 8
   },
   "box": {
-    "background": "rgba(0,0,0,0.75)",
+    "background": "rgba(0,0,0,0.8)",
     "padding_h": 16,
     "padding_v": 8,
     "corner_radius": 12,
-    "fade_out_ms": 200,
+    "animation_ms": 150,
+    "enter_scale": 0.5,
     "max_width": 800
   },
   "text": {
