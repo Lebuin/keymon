@@ -1,7 +1,7 @@
 // Run with: gjs -m tests/test_state.js
 //
 // Each test names the rule it checks from SPEC.md section 7. A row is written as
-// its boxes joined by spaces, or as the text of its one box. Rows are newest
+// its parts joined by spaces, or as the text of its one box. Rows are newest
 // first, and held keys are wrapped in asterisks by shownHeld().
 
 import System from 'system';
@@ -12,7 +12,6 @@ const CONFIG = {
     run_visible_ms: 3000,
     run_gap_ms: 2000,
     shift_delay_ms: 200,
-    run_max_chars: 30,
     max_runs: 5,
     space_symbol: '␣',
     names: {},
@@ -85,7 +84,7 @@ function setup(config = {}) {
 function render(run, marks = false) {
     const mark = part => (marks && part.held ? `*${part.label ?? part.text}*` : part.label ?? part.text);
     if (run.kind === 'modifier')
-        return run.boxes.map(mark).join(' ');
+        return run.parts.map(mark).join(' ');
     return run.items.map(mark).join('');
 }
 
@@ -210,7 +209,7 @@ test('held keys are marked on every visible row', () => {
     d.down(K.ctrl);
     d.tap(K.c);
     d.tap(K.v);
-    eq(d.shownHeld(), ['*Ctrl* v', '*Ctrl* c'], 'Ctrl on both rows');
+    eq(d.shownHeld(), ['*Ctrl* v', 'Ctrl c'], 'Ctrl only on the newest row');
     d.up(K.ctrl);
     eq(d.shownHeld(), ['Ctrl v', 'Ctrl c'], 'reverts at release');
 });
@@ -321,63 +320,6 @@ test('labels stay locked at press, and release matches by code', () => {
     eq(d.shownHeld(), ['*Shift*', '1'], 'released by code');
 });
 
-test('a full run is followed by a new one', () => {
-    const d = setup({run_max_chars: 3});
-    d.tap(K.a, K.s, K.c);
-    eq(d.shown(), ['asc'], 'exactly at the limit');
-    d.tap(K.v);
-    eq(d.shown(), ['v', 'asc'], 'the next character starts a new row');
-    d.tap(K.m);
-    eq(d.shown(), ['vm', 'asc'], 'further characters join the new row');
-});
-
-test('long typing stops at max_runs', () => {
-    const d = setup({run_max_chars: 1, max_runs: 2});
-    d.tap(K.a, K.s, K.c);
-    eq(d.shown(), ['c', 's'], 'the oldest row goes');
-});
-
-test('full rows expire on their own timers', () => {
-    const d = setup({run_max_chars: 1});
-    d.tap(K.a);
-    d.wait(1000);
-    d.tap(K.s);
-    d.wait(2000);
-    eq(d.shown(), ['s'], 'the first row is gone');
-    d.wait(1000);
-    eq(d.shown(), [], 'the second row follows');
-});
-
-test('a token counts by its length and is never split', () => {
-    const d = setup({run_max_chars: 7});
-    d.tap(K.a, K.s, K.esc);
-    eq(d.shown(), ['as‹Esc›'], 'fits exactly');
-    d.tap(K.esc);
-    eq(d.shown(), ['‹Esc›', 'as‹Esc›'], 'the next token starts a new row');
-});
-
-test('a token longer than the limit gets its own row', () => {
-    const d = setup({run_max_chars: 3});
-    d.tap(K.esc);
-    eq(d.shown(), ['‹Esc›'], 'shown whole');
-    d.tap(K.a);
-    eq(d.shown(), ['a', '‹Esc›'], 'the next character starts a new row');
-});
-
-test('Enter on a full run goes on a new row', () => {
-    const d = setup({run_max_chars: 2});
-    d.tap(K.a, K.s, K.enter, K.c);
-    eq(d.shown(), ['c', '⏎', 'as'], 'three rows');
-});
-
-test('Backspace does not reach back into a full run', () => {
-    const d = setup({run_max_chars: 2});
-    d.tap(K.a, K.s, K.c, K.backspace);
-    eq(d.shown(), ['as'], 'the new row is gone');
-    d.tap(K.backspace);
-    eq(d.shown(), ['⌫', 'as'], 'the full run stays as it was');
-});
-
 test('a new run starts after the gap since a press or release', () => {
     const d = setup();
     d.tap(K.a);
@@ -410,7 +352,7 @@ test('mouse activity does not affect text runs', () => {
 // Special keys in a text run
 
 test('tokens show their glyph or quoted label', () => {
-    const d = setup({run_max_chars: 40});
+    const d = setup();
     d.tap(K.tab, K.left, K.esc, K.f5, K.del, K.caps, K.unknown);
     eq(d.shown(), ['⇥←‹Esc›‹F5›‹Del›‹Caps›‹XF86Foo›'], 'tokens');
 });
@@ -525,7 +467,7 @@ test('a released modifier pressed again starts a new row', () => {
     const d = setup();
     d.tap(K.ctrl);
     d.down(K.ctrl);
-    eq(d.shownHeld(), ['*Ctrl*', '*Ctrl*'], 'two rows');
+    eq(d.shownHeld(), ['*Ctrl*', 'Ctrl'], 'two rows, marked on the newest only');
 });
 
 test('the other variant of a held modifier changes nothing', () => {
@@ -873,6 +815,155 @@ test('a release with no matching press is ignored', () => {
     eq(d.shown(), ['a'], 'nothing changes');
 });
 
+test('a non-modifier key stays marked on an older row', () => {
+    const d = setup();
+    d.down(K.a);
+    d.down(K.ctrl);
+    eq(d.shownHeld(), ['*Ctrl*', '*a*'], 'a is still marked');
+});
+
+test('special keys and the space symbol are muted in a text run', () => {
+    const d = setup();
+    d.tap(K.a, K.space, K.left, K.esc, K.backspace, K.enter);
+    const items = d.state.runs()[0].items;
+    eq(items.map(item => item.muted), [false, true, true, true, true, true],
+        'only a is not muted');
+});
+
+test('a run keeps its id, and a row replaced in place passes it on', () => {
+    const d = setup();
+    d.tap(K.a);
+    const id = d.state.runs()[0].id;
+    d.tap(K.s);
+    eq(d.state.runs()[0].id, id, 'same run after more typing');
+
+    d.down(K.ctrl);
+    const ctrlId = d.state.runs()[0].id;
+    eq(ctrlId !== id, true, 'a new run has a new id');
+    d.up(K.ctrl);
+
+    d.down(K.shift);
+    d.wait(200);
+    const shiftId = d.state.runs()[0].id;
+    eq(shiftId !== ctrlId, true, 'the Shift row is new');
+    d.down(K.bang);
+    eq(d.shown()[0], '!', 'the character replaced the row');
+    eq(d.state.runs()[0].id, shiftId, 'and took over its id');
+});
+
+const REPEAT = {repeat_delay_ms: 350, repeat_interval_ms: 30};
+
+test('a held character repeats after the delay, at the interval', () => {
+    const d = setup(REPEAT);
+    d.down(K.a);
+    d.wait(349);
+    eq(d.shown(), ['a'], 'not before the delay');
+    d.wait(1);
+    eq(d.shown(), ['aa'], 'at the delay');
+    eq(d.state.nextDeadline(), d.now() + 30, 'the next one is due');
+    d.wait(90);
+    eq(d.shown(), ['aaaaa'], 'catches up');
+    d.up(K.a);
+    d.wait(100);
+    eq(d.shown(), ['aaaaa'], 'stops at release');
+});
+
+test('a fractional interval does not drift', () => {
+    const d = setup({repeat_delay_ms: 350, repeat_interval_ms: 28.43});
+    d.down(K.a);
+    d.wait(350);
+    for (let i = 0; i < 3; i++)
+        d.wait(950);
+    eq(d.shown()[0].length, 102, 'the press, the first repeat, and 100 more');
+});
+
+test('only the latest occurrence of a repeating key is marked', () => {
+    const d = setup(REPEAT);
+    d.tap(K.s);
+    d.down(K.a);
+    d.wait(380);
+    eq(d.shownHeld(), ['saa*a*'], 'the last one');
+    d.up(K.a);
+    eq(d.shownHeld(), ['saaa'], 'none after release');
+});
+
+test('ids are not reused after a reset', () => {
+    const d = setup();
+    d.tap(K.a);
+    const id = d.state.runs()[0].id;
+    d.state.reset();
+    d.tap(K.a);
+    eq(d.state.runs()[0].id !== id, true, 'a new id');
+});
+
+test('only the newest key repeats', () => {
+    const d = setup(REPEAT);
+    d.down(K.a);
+    d.down(K.s);
+    d.wait(350);
+    eq(d.shown(), ['ass'], 's repeats');
+    d.up(K.a);
+    d.wait(30);
+    eq(d.shown(), ['asss'], 'releasing the other key changes nothing');
+    d.up(K.s);
+    d.down(K.a);
+    d.down(K.s);
+    d.up(K.s);
+    d.wait(400);
+    eq(d.shown(), ['asssas'], 'releasing the newest stops it, as in applications');
+});
+
+test('a repeated character keeps its locked label', () => {
+    const d = setup(REPEAT);
+    d.down(K.shift);
+    d.down(K.bang);
+    d.wait(350);
+    eq(d.shown(), ['!!'], 'typed under Shift');
+    d.up(K.shift);
+    d.wait(30);
+    eq(d.shown(), ['!!!'], 'still the same character');
+});
+
+test('a chorded key does not repeat, and a hard modifier stops a repeat', () => {
+    const d = setup(REPEAT);
+    d.down(K.ctrl);
+    d.down(K.c);
+    d.wait(1000);
+    eq(d.shown(), ['Ctrl c'], 'one row');
+    d.up(K.c);
+    d.up(K.ctrl);
+
+    const e = setup(REPEAT);
+    e.down(K.a);
+    e.wait(350);
+    e.down(K.ctrl);
+    e.wait(1000);
+    eq(e.shown(), ['Ctrl', 'aa'], 'no more characters');
+});
+
+test('special keys do not repeat', () => {
+    const d = setup(REPEAT);
+    d.down(K.esc);
+    d.wait(1000);
+    eq(d.shown(), ['‹Esc›'], 'one token');
+});
+
+test('a held Backspace erases one character', () => {
+    const d = setup(REPEAT);
+    d.tap(K.a, K.s, K.c);
+    d.down(K.backspace);
+    d.wait(1000);
+    eq(d.shown(), ['as'], 'only the press erases');
+    eq(d.state.nextDeadline() > d.now() + 1000, true, 'no repeat is due');
+});
+
+test('a long run has no character limit', () => {
+    const d = setup();
+    for (let i = 0; i < 100; i++)
+        d.tap(K.a);
+    eq(d.shown(), ['a'.repeat(100)], 'one row');
+});
+
 test('reset clears runs, held keys and pending modifiers', () => {
     const d = setup();
     d.down(K.ctrl);
@@ -889,6 +980,11 @@ test('reset clears runs, held keys and pending modifiers', () => {
     d.state.reset();
     d.wait(1000);
     eq(d.shown(), [], 'the pending Shift is gone');
+
+    const e = setup(REPEAT);
+    e.down(K.a);
+    e.state.reset();
+    eq(e.state.nextDeadline(), null, 'no repeat is due');
 });
 
 console.log(`${passed} checks passed, ${failed} failed`);

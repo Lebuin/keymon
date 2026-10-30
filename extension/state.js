@@ -11,7 +11,8 @@ export const DEFAULT_KEYS = {
     run_visible_ms: 3000,
     run_gap_ms: 2000,
     shift_delay_ms: 200,
-    run_max_chars: 30,
+    repeat_delay_ms: null, // Null means keys don't repeat.
+    repeat_interval_ms: null,
     max_runs: 5,
     space_symbol: '␣',
     names: {},
@@ -64,13 +65,10 @@ const TOKEN_GLYPHS = {
     Down: '↓', KP_Down: '↓',
 };
 
-function charCount(text) {
-    return [...text].length;
-}
-
 export class DisplayState {
     constructor(keys, now) {
         this._now = now;
+        this._nextId = 1; // Never reused, since a fading row can outlive a reset.
         this.setConfig(keys);
         this.reset();
     }
@@ -89,6 +87,8 @@ export class DisplayState {
         this._pending = new Set(); // Soft modifiers waiting for the delay.
         this._pendingDeadline = null;
         this._absorbed = new Set(); // Held soft modifiers that went into typing.
+        this._inheritedId = null; // For the run replacing a row in place.
+        this._repeat = null; // The key repeating, as {press, next}.
     }
 
     keyDown(code, key) {
@@ -102,6 +102,7 @@ export class DisplayState {
         const modifier = MODIFIER_OF[key.keysym] ?? null;
         const alreadyHeld = modifier !== null && this._modifierHeld(modifier);
         const press = {key, modifier, count: 1, run: null};
+        const repeats = modifier === null && this._repeats(press);
         this._held.set(code, press);
 
         if (modifier !== null) {
@@ -112,6 +113,8 @@ export class DisplayState {
         } else {
             this._specialDown(press);
         }
+        if (modifier === null)
+            this._startRepeat(repeats ? press : null);
         this._updateTimers();
     }
 
@@ -124,6 +127,8 @@ export class DisplayState {
         if (press.count > 0)
             return;
         this._held.delete(code);
+        if (this._repeat?.press === press)
+            this._repeat = null;
 
         if (press.run !== null && press.run === this._textRun)
             press.run.lastActivity = this._now();
@@ -157,6 +162,8 @@ export class DisplayState {
             .map(run => run.timerStart + this._keys.run_visible_ms);
         if (this._pendingDeadline !== null)
             deadlines.push(this._pendingDeadline);
+        if (this._repeat)
+            deadlines.push(this._repeat.next);
         return deadlines.length > 0 ? Math.min(...deadlines) : null;
     }
 
@@ -169,24 +176,38 @@ export class DisplayState {
         return true;
     }
 
-    // Newest first. A text run is {kind: 'text', items: [{text, held}]}, and a
-    // modifier run is {kind: 'modifier', boxes: [{label, held}]}.
+    // Newest first. A text run is {id, kind: 'text', items: [{text, held, muted, breakAfter}]},
+    // and a modifier run is {id, kind: 'modifier', parts: [{label, held}]}. A run
+    // keeps its id while shown, and a row replaced in place passes its id on.
+    // A modifier only counts as held in the newest run.
     runs() {
-        return this._runs.map(run => (run.items ? this._textView(run) : this._modifierView(run)));
+        return this._runs.map((run, index) => (run.items
+            ? this._textView(run)
+            : this._modifierView(run, index === 0)));
     }
 
     _textView(run) {
-        const items = run.items.map(item => ({text: item.text, held: this._isHeld(item.press)}));
-        return {kind: 'text', items};
+        // A repeating key has many items, and only its latest one counts as held.
+        const latest = new Map(run.items.map(item => [item.press, item]));
+        const items = run.items.map(item => ({
+            text: item.text,
+            held: latest.get(item.press) === item && this._isHeld(item.press),
+            muted: item.muted,
+            breakAfter: item.breakAfter,
+        }));
+        return {id: run.id, kind: 'text', items};
     }
 
-    _modifierView(run) {
-        const boxes = [...run.boxes]
+    _modifierView(run, active) {
+        const parts = [...run.boxes]
             .sort((a, b) => MODIFIER_ORDER.indexOf(a.modifier) - MODIFIER_ORDER.indexOf(b.modifier))
-            .map(box => ({label: this._modifierLabel(box.modifier), held: this._modifierHeld(box.modifier)}));
+            .map(box => ({
+                label: this._modifierLabel(box.modifier),
+                held: active && this._modifierHeld(box.modifier),
+            }));
         if (run.press)
-            boxes.push({label: run.label, held: this._isHeld(run.press)});
-        return {kind: 'modifier', boxes};
+            parts.push({label: run.label, held: this._isHeld(run.press)});
+        return {id: run.id, kind: 'modifier', parts};
     }
 
     _modifierLabel(modifier) {
@@ -242,6 +263,7 @@ export class DisplayState {
     _showModifiers(extra) {
         const added = [...this._takePending(), ...extra];
         this._absorbed.clear();
+        this._repeat = null;
         this._textRun = null;
 
         const newest = this._runs[0];
@@ -279,7 +301,9 @@ export class DisplayState {
     _addRun(run) {
         for (const older of this._runs)
             older.replaced = true;
-        this._runs.unshift({...run, timerStart: this._now(), paused: false, replaced: false});
+        const id = this._inheritedId ?? this._nextId++;
+        this._inheritedId = null;
+        this._runs.unshift({...run, id, timerStart: this._now(), paused: false, replaced: false});
         this._limitRuns();
         return this._runs[0];
     }
@@ -303,10 +327,15 @@ export class DisplayState {
         if (newest?.boxes && !newest.press &&
             newest.boxes.every(box => SOFT_MODIFIERS.has(box.modifier)) &&
             newest.boxes.some(box => box.live))
-            this._runs.shift();
+            this._inheritedId = this._runs.shift().id;
 
+        this._appendTyped(press);
+    }
+
+    _appendTyped(press) {
         const text = press.key.keysym === 'space' ? this._keys.space_symbol : press.key.text;
-        this._appendToText({text, token: false, press}, press);
+        const muted = press.key.keysym === 'space';
+        this._appendToText({text, token: false, muted, breakAfter: muted, press}, press);
     }
 
     _specialDown(press) {
@@ -321,7 +350,7 @@ export class DisplayState {
         }
         const label = this._keys.names[keysym] ?? DEFAULT_NAMES[keysym] ?? keysym;
         const text = TOKEN_GLYPHS[keysym] ?? `‹${label}›`;
-        this._appendToText({text, token: true, press}, press);
+        this._appendToText({text, token: true, muted: true, press}, press);
         if (ENTER_KEYSYMS.has(keysym))
             this._textRun = null;
     }
@@ -329,7 +358,7 @@ export class DisplayState {
     _backspace(press) {
         const run = this._currentTextRun();
         if (!run || run.items.at(-1).token) {
-            this._appendToText({text: '⌫', token: true, press}, press);
+            this._appendToText({text: '⌫', token: true, muted: true, press}, press);
             return;
         }
         run.items.pop();
@@ -345,6 +374,7 @@ export class DisplayState {
     _chord(press) {
         const modifiers = new Set([...this._heldModifiers(), ...this._takePending()]);
         this._absorbed.clear();
+        this._repeat = null;
         this._textRun = null;
 
         const newest = this._runs[0];
@@ -366,19 +396,31 @@ export class DisplayState {
     }
 
     _appendToText(item, press) {
-        // A token is never split, so one too long for the limit gets its own run.
-        let run = this._currentTextRun();
-        if (run && this._textLength(run) + charCount(item.text) > this._keys.run_max_chars)
-            run = null;
-        run ??= this._addRun({items: []});
+        const run = this._currentTextRun() ?? this._addRun({items: []});
         this._textRun = run;
         run.items.push(item);
         run.timerStart = run.lastActivity = this._now();
         press.run = run;
     }
 
-    _textLength(run) {
-        return run.items.reduce((length, item) => length + charCount(item.text), 0);
+    // Only typed characters repeat, as long as they aren't chorded.
+    _repeats(press) {
+        return press.key.class === 'printable' && !this._hardHeld();
+    }
+
+    _startRepeat(press) {
+        const {repeat_delay_ms: delay, repeat_interval_ms: interval} = this._keys;
+        this._repeat = press && delay !== null && interval > 0
+            ? {press, next: this._now() + delay}
+            : null;
+    }
+
+    // Catches up on the repeats due by now.
+    _runRepeats(now) {
+        while (this._repeat && now >= this._repeat.next) {
+            this._repeat.next += this._keys.repeat_interval_ms;
+            this._appendTyped(this._repeat.press);
+        }
     }
 
     _runHeld(run) {
@@ -404,6 +446,7 @@ export class DisplayState {
         const now = this._now();
         if (this._pendingDeadline !== null && now >= this._pendingDeadline)
             this._showModifiers([]);
+        this._runRepeats(now);
         this._updateTimers();
         this._runs = this._runs.filter(
             run => run.paused || now - run.timerStart < this._keys.run_visible_ms);

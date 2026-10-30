@@ -104,7 +104,7 @@ The classification comes from the keysym, so XKB remapping is respected. For exa
 - **Locked at press:** the label is set when the key goes down and does not change while held. Press 1 then Shift: the run still says `1`. Release matches by key code.
 - **Combos:** Ctrl+C shows `Ctrl` and `c`. Letters are not force-uppercased. Ctrl+Shift+T shows `Ctrl`, `Shift`, `T`.
 - **Layout switch:** applies to the next key press. Labels already shown stay as they are.
-- **Dead keys:** shown as their spacing character, with no composition. `'` then `e` on `altgr-intl` shows `´e`, not `é`. This is a known v1 limitation.
+- **Dead keys:** shown as their spacing character, with no composition. AltGr+`'` then `e` on `altgr-intl` shows `´e`, not `é`. This is a known v1 limitation.
 - **Left and right variants:** share one label and one box, reference-counted across keys and keyboards.
 
 ### Default names
@@ -129,9 +129,11 @@ The overlay is a vertical stack of 0, 1, or more runs. Each run is one row. Ther
 | Kind | Contents | Appearance |
 |---|---|---|
 | Text run | Typed characters and inline special keys | One box holding all the text |
-| Modifier run | Modifiers, plus at most one other key | Separate boxes side by side, modifiers first, always in the order Ctrl, Alt, AltGr, Shift, Super |
+| Modifier run | Modifiers, plus at most one other key | One box with the parts joined by `+`, modifiers first, always in the order Ctrl, Alt, AltGr, Shift, Super |
 
-Each rectangle has a translucent dark background and white text.
+Each box has a translucent dark background and white text. The examples below write the parts of a modifier run separately: `Ctrl` `c` displays as `Ctrl+c`.
+
+In a text run, special keys and the space symbol use `text.muted_color`, so they stand out from typed text. Modifier runs don't use it.
 
 ### Modifier classes
 
@@ -152,29 +154,33 @@ A key is **chorded** when a hard modifier is physically held, or when a soft mod
 
 If `text.held_color` is set, the label of any key that is physically held uses that colour. If it is `null`, held keys use `text.color` like everything else.
 
-- This applies to every visible row, not just the newest. With Ctrl held after Ctrl+C and Ctrl+V, `Ctrl` is coloured on both rows.
-- In a modifier run, each box is coloured separately.
-- In a text run, only the characters or tokens whose keys are held are coloured, so the box needs per-character styling. Text must be escaped if this uses Pango markup.
+- A modifier is only coloured in the newest row. With Ctrl held after Ctrl+C and Ctrl+V, `Ctrl` is coloured on the `Ctrl` `v` row only.
+- Any other held key is coloured on whichever row shows it.
+- In a modifier run, each part is coloured separately, and the `+` keeps `text.color`.
+- In a text run, only the characters or tokens whose keys are held are coloured, and of a repeating key only the latest one, and this takes priority over `text.muted_color`. The box needs per-character styling, and text must be escaped if this uses Pango markup.
 - The colour reverts as soon as the key is released, including for left and right variants once neither is held.
 
 ### Stack
 
 - The newest run sits at the anchor point. A new run moves the older ones by one row, in the direction set by `keys.stack_direction` (`up` or `down`).
-- When a run disappears, the runs further from the anchor close the gap.
-- Movement is instant, with no animation.
+- When a run disappears, it fades out over `box.fade_out_ms`. It keeps its place in the stack while it fades, so new rows still push it along, and the runs further from the anchor close the gap when the fade ends.
+- Movement is instant, with no animation. A row replaced in place (see "Shift and AltGr") doesn't fade.
 - There are at most `keys.max_runs` rows. Past that limit, or when a row would leave the monitor, the oldest run is removed early. The newest run is never removed this way.
 
 ### Text runs
 
 - A **printable key** is any key with visible text, including Space and keypad digits. A printable key that isn't chorded joins the current text run.
 - Text comes from each key's locked label. Space appears as `keys.space_symbol` so that trailing spaces stay visible.
-- Auto-repeat is ignored. Holding `a` adds one `a`, and holding Backspace erases one character.
+- A held key repeats at the rate from GNOME's keyboard settings (`delay` and `repeat-interval` in `org.gnome.desktop.peripherals.keyboard`), read at switch-on, unless `keys.repeat_delay_ms` or `keys.repeat_interval_ms` overrides them. Compositor repeat is what applications follow. The kernel's repeat events have their own rate, so the helper still ignores them.
+  - Only a typed character repeats, and only the most recently pressed key. Releasing that key ends the repeat, and a repeat doesn't restart for a key still held.
+  - A repeat uses the label locked at press, and a chorded key doesn't repeat. A modifier that shows ends the repeat.
+  - A held Backspace erases one character, because a display can't reliably follow how far an application has really erased.
+  - Repeats are predicted from those settings and can drift from an application that handles them differently.
 - Keys held at the same time merge. Holding A and S shows one box, `as`.
 - A new text run starts when any of these is true:
   - There is no current text run, for example because the last one expired or a modifier run came after it.
   - No text run key has been pressed or released for `keys.run_gap_ms`.
   - The previous key in the run was Enter.
-  - The new character or token would take the run past `keys.run_max_chars`. A token counts by its visible length and is never split, so one longer than the limit gets its own run.
 - Mouse activity doesn't affect text runs.
 
 ### Special keys in a text run
@@ -267,9 +273,9 @@ A press and release that both fall between two frames is missed. At 60 Hz this n
 
 - The run stack is shown only on `overlay.monitor`: `"primary"` or a connector name such as `"DP-1"`.
 - If the named monitor is absent, it falls back to primary. It repositions when monitors change.
-- `overlay.anchor_h` and `overlay.anchor_v` select both the reference point on the monitor and the matching point on the newest row. `bottom` + `center` puts that row's bottom-centre at the monitor's bottom-centre.
-- `overlay.offset_x` and `offset_y` shift the newest row from that point. Positive values always move right and down.
-- Each row grows away from the horizontal anchor: to the right when `left`, to the left when `right`, and in both directions when `center`. All rows share that alignment.
+- `overlay.origin_h` and `overlay.origin_v` select a point on the monitor, and `overlay.offset_x` and `offset_y` move on from there. Positive offsets always move right and down.
+- `overlay.anchor_h` and `overlay.anchor_v` select the point on the newest row that goes at the result. `bottom` + `center` puts that row's bottom-centre there. To measure from the monitor's top-left corner, use origin `left` + `top`.
+- Each row grows away from the horizontal anchor: to the right when `left`, to the left when `right`, and in both directions when `center`. All rows share that alignment, and the lines of a wrapped box are aligned the same way.
 - Older rows extend in the `keys.stack_direction` direction, whatever the vertical anchor. With `top` + `up`, older rows would leave the monitor, so they are removed as described in §7.
 
 ## 10. Lifecycle and privacy
@@ -305,24 +311,29 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 |---|---|---|
 | `toggle_shortcut` | `"<Super><Alt>k"` | Global on/off shortcut, applied through the extension's GSettings key |
 | `overlay.monitor` | `"primary"` | `"primary"` or a connector name |
-| `overlay.anchor_h` | `"center"` | `left`, `center`, or `right` |
-| `overlay.anchor_v` | `"bottom"` | `top`, `center`, or `bottom` |
+| `overlay.origin_h` | `"center"` | Point on the monitor the offset starts from: `left`, `center`, or `right` |
+| `overlay.origin_v` | `"bottom"` | Same, vertically: `top`, `center`, or `bottom` |
+| `overlay.anchor_h` | `"center"` | Point on the newest row placed there, and the alignment of wrapped lines: `left`, `center`, or `right` |
+| `overlay.anchor_v` | `"bottom"` | Same, vertically: `top`, `center`, or `bottom` |
 | `overlay.offset_x` | `0` | Horizontal shift in px |
 | `overlay.offset_y` | `-80` | Vertical shift in px |
-| `overlay.box_spacing` | `8` | Gap between boxes in a row in px |
 | `overlay.row_spacing` | `8` | Gap between rows in px |
 | `box.background` | `"rgba(0,0,0,0.75)"` | Box background |
 | `box.padding_h` | `16` | Horizontal padding in px |
 | `box.padding_v` | `8` | Vertical padding in px |
-| `box.corner_radius` | `4` | Corner radius in px |
+| `box.corner_radius` | `12` | Corner radius in px |
+| `box.fade_out_ms` | `200` | Fade-out when a box is removed. `0` removes it at once |
+| `box.max_width` | `800` | Maximum box width in px, including padding. Wider content wraps onto more lines |
 | `text.color` | `"#ffffff"` | Text colour |
 | `text.held_color` | `null` | Optional text colour for keys currently held. `null` uses `text.color` |
+| `text.muted_color` | `"rgba(255,255,255,0.65)"` | Text colour for special keys and the space symbol in a text run. `null` uses `text.color` |
 | `text.size` | `28` | Text size in px |
 | `text.font` | `"sans"` | Font family |
 | `keys.run_visible_ms` | `3000` | How long a run stays visible |
 | `keys.run_gap_ms` | `2000` | Time without typing before a new text run starts |
+| `keys.repeat_delay_ms` | `null` | Delay before a held key repeats. `null` uses GNOME's setting |
+| `keys.repeat_interval_ms` | `null` | Time between repeats, which can be fractional. `null` uses GNOME's setting plus 1.4 ms, the measured lag of applications |
 | `keys.shift_delay_ms` | `200` | Time for a key to follow Shift or AltGr before it counts as a modifier |
-| `keys.run_max_chars` | `30` | Characters in a text run before a new one starts |
 | `keys.max_runs` | `5` | Maximum rows in the stack |
 | `keys.stack_direction` | `"up"` | Direction older runs move: `up` or `down` |
 | `keys.space_symbol` | `"␣"` | Space inside a text run |
@@ -371,9 +382,8 @@ If the extension path is already a symlink to this repo, as `dev/link-extension.
 SPEC.md
 install.sh, uninstall.sh
 config.example.json
-extension/      metadata.json, extension.js, state.js, overlay.js, pointer.js, schemas/
+extension/      metadata.json, extension.js, state.js, overlay.js, pointer.js, keymon-keymap, schemas/
 helper/         keymon-helper, keymon.service, keymon.socket
-keymap/         keymon-keymap
 tests/
 ```
 
@@ -383,14 +393,14 @@ tests/
 
 **Keys**
 
-1. Holding Ctrl and Shift with another app focused shows two boxes side by side, in that order. Pressing Ctrl shows its box immediately, and it stays through a long Ctrl+click until `keys.run_visible_ms` after release.
+1. Holding Ctrl and Shift with another app focused shows one box, `Ctrl+Shift`. Pressing Ctrl shows its box immediately, and it stays through a long Ctrl+click until `keys.run_visible_ms` after release.
 2. A very short tap of any key stays visible for `keys.run_visible_ms`.
 3. Typing `hello` shows one box, and each character restarts its timer. A pause of 2 s before more typing starts a new run, and older rows move in the `keys.stack_direction` direction.
 4. `hello`, Enter, `world` shows `hello⏎` and `world` on two rows. Backspace erases the last character. With no character to erase, it shows `⌫`.
-5. Ctrl down, `c`, `v`, Ctrl up shows two rows, `Ctrl` `c` and `Ctrl` `v`. A following `m` starts a separate text run, and an earlier text run keeps its row until its timer ends.
-6. Shift+1 typed quickly appends `!` to the current run, with no `Shift` row. Shift alone shows a `Shift` row after 200 ms. Pressing `1` while that row is held replaces it with `!`, not merged into any earlier run. Shift+Tab shows `Shift` `Tab`.
+5. Ctrl down, `c`, `v`, Ctrl up shows two rows, `Ctrl+c` and `Ctrl+v`. A following `m` starts a separate text run, and an earlier text run keeps its row until its timer ends.
+6. Shift+1 typed quickly appends `!` to the current run, with no `Shift` row. Shift alone shows a `Shift` row after 200 ms. Pressing `1` while that row is held replaces it with `!`, not merged into any earlier run. Shift+Tab shows `Shift+Tab`.
 7. Shift+1 shows `!` on `us`. The same physical key shows the correct character after switching to `be`.
-8. Holding a key shows one character, with no repeats. With `text.held_color` set, that character uses the colour until release, and the rest of the run keeps `text.color`.
+8. Holding a key adds characters at the same rate as the focused application, and holding Backspace erases one character. With `text.held_color` set, the latest character of the held key uses the colour until release, and the rest of the run keeps `text.color`.
 9. Holding 1 then pressing Shift leaves the label as `1`.
 
 **Mouse**
@@ -403,7 +413,7 @@ tests/
 **System**
 
 14. The overlay never blocks clicks or takes focus, including above fullscreen windows.
-15. Every anchor combination places the newest row correctly on the configured monitor, and `keys.max_runs` limits the stack.
+15. Every origin and anchor combination places the newest row correctly on the configured monitor, and `keys.max_runs` limits the stack.
 16. A config edit applies live. A broken config keeps the last valid one and shows a notification.
 17. While off, `systemctl status keymon.service` shows inactive, and no process has an input device open for keymon.
 18. Locking the screen removes the overlay. Keys typed to unlock are not shown, and keymon resumes after unlock.

@@ -1,0 +1,151 @@
+#!/usr/bin/python3
+"""Prints the key label table for an XKB layout as JSON. See SPEC.md section 6.
+
+Runs unprivileged, on demand, from the extension. The table maps each XKB keycode
+to 16 entries, one per combination of the modifier bits below. An entry is
+{keysym, text, class}, or null where the key produces nothing.
+"""
+
+import argparse
+import ctypes
+import json
+import sys
+
+SHIFT, ALTGR, CAPS, NUM = 1, 2, 4, 8
+COMBINATIONS = 16
+
+# Keysyms with a visible text form that XKB reports as having none.
+DEAD_KEYS = {
+    "dead_grave": "`",
+    "dead_acute": "´",
+    "dead_circumflex": "^",
+    "dead_tilde": "~",
+    "dead_macron": "¯",
+    "dead_breve": "˘",
+    "dead_abovedot": "˙",
+    "dead_diaeresis": "¨",
+    "dead_abovering": "˚",
+    "dead_doubleacute": "˝",
+    "dead_caron": "ˇ",
+    "dead_cedilla": "¸",
+    "dead_ogonek": "˛",
+    "dead_iota": "ͺ",
+    "dead_belowdot": ".",
+    "dead_hook": "ˀ",
+    "dead_horn": "̛",
+    "dead_stroke": "/",
+    "dead_greek": "µ",
+}
+
+MODIFIER_KEYSYMS = {
+    "Shift_L", "Shift_R",
+    "Control_L", "Control_R",
+    "Alt_L", "Alt_R",
+    "Meta_L", "Meta_R",
+    "Super_L", "Super_R",
+    "Hyper_L", "Hyper_R",
+    "ISO_Level3_Shift", "ISO_Level5_Shift",
+}
+
+
+class RuleNames(ctypes.Structure):
+    _fields_ = [
+        ("rules", ctypes.c_char_p),
+        ("model", ctypes.c_char_p),
+        ("layout", ctypes.c_char_p),
+        ("variant", ctypes.c_char_p),
+        ("options", ctypes.c_char_p),
+    ]
+
+
+def load_xkbcommon():
+    xkb = ctypes.CDLL("libxkbcommon.so.0")
+    pointer, uint32 = ctypes.c_void_p, ctypes.c_uint32
+    for name, restype, argtypes in [
+        ("xkb_context_new", pointer, [ctypes.c_int]),
+        ("xkb_keymap_new_from_names", pointer, [pointer, ctypes.POINTER(RuleNames), ctypes.c_int]),
+        ("xkb_keymap_min_keycode", uint32, [pointer]),
+        ("xkb_keymap_max_keycode", uint32, [pointer]),
+        ("xkb_keymap_mod_get_index", uint32, [pointer, ctypes.c_char_p]),
+        ("xkb_state_new", pointer, [pointer]),
+        ("xkb_state_update_mask", ctypes.c_int, [pointer] + [uint32] * 6),
+        ("xkb_state_key_get_one_sym", uint32, [pointer, uint32]),
+        ("xkb_state_key_get_utf8", ctypes.c_int, [pointer, uint32, ctypes.c_char_p, ctypes.c_size_t]),
+        ("xkb_keysym_get_name", ctypes.c_int, [uint32, ctypes.c_char_p, ctypes.c_size_t]),
+    ]:
+        function = getattr(xkb, name)
+        function.restype = restype
+        function.argtypes = argtypes
+    return xkb
+
+
+def visible(text):
+    return text != "" and all(ord(c) >= 0x20 and not 0x7f <= ord(c) < 0xa0 for c in text)
+
+
+def entry(xkb, state, keycode):
+    keysym = xkb.xkb_state_key_get_one_sym(state, keycode)
+    if keysym == 0:
+        return None
+    buffer = ctypes.create_string_buffer(64)
+    xkb.xkb_keysym_get_name(keysym, buffer, len(buffer))
+    name = buffer.value.decode()
+
+    if name in MODIFIER_KEYSYMS:
+        return {"keysym": name, "text": None, "class": "modifier"}
+    text = DEAD_KEYS.get(name)
+    if text is None:
+        xkb.xkb_state_key_get_utf8(state, keycode, buffer, len(buffer))
+        text = buffer.value.decode(errors="replace")
+    if visible(text):
+        return {"keysym": name, "text": text, "class": "printable"}
+    return {"keysym": name, "text": None, "class": "special"}
+
+
+def build_table(layout, variant, options):
+    xkb = load_xkbcommon()
+    context = xkb.xkb_context_new(0)
+    if not context:
+        raise RuntimeError("could not create an XKB context")
+    # The rules and model Mutter uses, so that media keys resolve as they do there.
+    names = RuleNames(b"evdev", b"pc105+inet", layout.encode(), variant.encode(), options.encode())
+    keymap = xkb.xkb_keymap_new_from_names(context, ctypes.byref(names), 0)
+    if not keymap:
+        raise RuntimeError(f"could not compile layout {layout!r}, variant {variant!r}")
+
+    def mask(name):
+        return 1 << xkb.xkb_keymap_mod_get_index(keymap, name)
+
+    states = []
+    for combination in range(COMBINATIONS):
+        depressed = (mask(b"Shift") if combination & SHIFT else 0) | (mask(b"Mod5") if combination & ALTGR else 0)
+        locked = (mask(b"Lock") if combination & CAPS else 0) | (mask(b"Mod2") if combination & NUM else 0)
+        state = xkb.xkb_state_new(keymap)
+        xkb.xkb_state_update_mask(state, depressed, 0, locked, 0, 0, 0)
+        states.append(state)
+
+    keys = {}
+    for keycode in range(xkb.xkb_keymap_min_keycode(keymap), xkb.xkb_keymap_max_keycode(keymap) + 1):
+        entries = [entry(xkb, state, keycode) for state in states]
+        if any(entries):
+            keys[str(keycode)] = entries
+    return keys
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--layout", required=True)
+    parser.add_argument("--variant", default="")
+    parser.add_argument("--options", default="", help="comma-separated XKB options")
+    args = parser.parse_args()
+    try:
+        keys = build_table(args.layout, args.variant, args.options)
+    except (OSError, RuntimeError) as error:
+        print(f"keymon-keymap: {error}", file=sys.stderr)
+        return 1
+    json.dump({"keys": keys}, sys.stdout, ensure_ascii=False, separators=(",", ":"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
