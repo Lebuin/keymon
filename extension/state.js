@@ -58,6 +58,7 @@ const DEFAULT_NAMES = {
 const ENTER_KEYSYMS = new Set(['Return', 'KP_Enter']);
 const TOKEN_GLYPHS = {
     Return: '⏎', KP_Enter: '⏎',
+    BackSpace: '⌫',
     Tab: '⇥', ISO_Left_Tab: '⇥',
     Left: '←', KP_Left: '←',
     Up: '↑', KP_Up: '↑',
@@ -219,9 +220,11 @@ export class DisplayState {
         const name = this._keys.names[key.keysym];
         if (name !== undefined)
             return name;
-        if (key.class === 'printable' && key.keysym !== 'space')
+        if (key.keysym === 'space')
+            return this._keys.space_symbol;
+        if (key.class === 'printable')
             return key.text;
-        return DEFAULT_NAMES[key.keysym] ?? key.keysym;
+        return TOKEN_GLYPHS[key.keysym] ?? DEFAULT_NAMES[key.keysym] ?? key.keysym;
     }
 
     _isHeld(press) {

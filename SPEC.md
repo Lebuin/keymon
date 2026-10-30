@@ -109,18 +109,18 @@ The classification comes from the keysym, so XKB remapping is respected. For exa
 
 ### Default names
 
-These labels apply in modifier runs and, in angle quotes, as tokens in text runs (see §7). Names can be overridden through `keys.names` in config. Keysyms with no entry show their keysym name.
+These labels apply in modifier runs and, in angle quotes, as tokens in text runs (see §7). Symbols are never quoted. Names can be overridden through `keys.names` in config. Keysyms with no entry show their keysym name.
 
 | Key | Label | Key | Label |
 |---|---|---|---|
-| Control | `Ctrl` | Enter, keypad Enter | `Enter` |
+| Control | `Ctrl` | Enter, keypad Enter | `⏎` |
 | Shift | `Shift` | Escape | `Esc` |
-| Alt | `Alt` | Tab | `Tab` |
-| AltGr (`ISO_Level3_Shift`) | `AltGr` | Backspace | `Backspace` |
+| Alt | `Alt` | Tab | `⇥` |
+| AltGr (`ISO_Level3_Shift`) | `AltGr` | Backspace | `⌫` |
 | Super | `Super` | Delete | `Del` |
 | Arrows | `←` `↑` `→` `↓` | Function keys | `F1` … `F24` |
 | Page Up / Down | `PgUp` `PgDn` | Caps Lock | `Caps` |
-| Home / End / Insert | `Home` `End` `Ins` | Space, in a box | `Space` |
+| Home / End / Insert | `Home` `End` `Ins` | Space | `keys.space_symbol` |
 
 ## 7. Key display behaviour
 
@@ -133,7 +133,7 @@ The overlay is a vertical stack of 0, 1, or more runs. Each run is one row. Ther
 
 Each box has a translucent dark background and white text. The examples below write the parts of a modifier run separately: `Ctrl` `c` displays as `Ctrl+c`.
 
-In a text run, special keys and the space symbol use `text.muted_color`, so they stand out from typed text. Modifier runs don't use it.
+In a text run, special keys and the space symbol use `text.muted_color`, so typed text stands out from them. Everything in a modifier run uses it too, including the `+`. Held keys use `text.held_color` instead, where one is set.
 
 ### Modifier classes
 
@@ -217,7 +217,7 @@ A press with no hard modifier held is **pending**, and shows nothing. It resolve
 | What happens next | Result |
 |---|---|
 | A printable key within the delay | The modifier is **absorbed**, and the character goes into the current text run under the usual rules |
-| A special key within the delay | Modifier run, as `Shift` `Tab`, immediately |
+| A special key within the delay | Modifier run, as `Shift` `⇥`, immediately |
 | A hard modifier or mouse press within the delay | Modifier run including it, immediately. Shift+click shows at the click |
 | Nothing within the delay, held or not | Standalone modifier run at the end of the delay, which ends the current text run |
 
@@ -325,8 +325,8 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `box.fade_out_ms` | `200` | Fade-out when a box is removed. `0` removes it at once |
 | `box.max_width` | `800` | Maximum box width in px, including padding. Wider content wraps onto more lines |
 | `text.color` | `"#ffffff"` | Text colour |
-| `text.held_color` | `null` | Optional text colour for keys currently held. `null` uses `text.color` |
-| `text.muted_color` | `"rgba(255,255,255,0.65)"` | Text colour for special keys and the space symbol in a text run. `null` uses `text.color` |
+| `text.held_color` | `"#ffcc00"` | Optional text colour for keys currently held. `null` uses `text.color` |
+| `text.muted_color` | `"rgba(255,255,255,0.8)"` | Text colour for modifier runs, and for special keys and the space symbol in a text run. `null` uses `text.color` |
 | `text.size` | `28` | Text size in px |
 | `text.font` | `"sans"` | Font family |
 | `keys.run_visible_ms` | `3000` | How long a run stays visible |
@@ -336,7 +336,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `keys.shift_delay_ms` | `200` | Time for a key to follow Shift or AltGr before it counts as a modifier |
 | `keys.max_runs` | `5` | Maximum rows in the stack |
 | `keys.stack_direction` | `"up"` | Direction older runs move: `up` or `down` |
-| `keys.space_symbol` | `"␣"` | Space inside a text run |
+| `keys.space_symbol` | `"␣"` | Space, in any run |
 | `keys.names` | `{}` | Keysym name to label overrides |
 | `mouse.ring.radius` | `28` | Permanent ring and final ripple radius in px |
 | `mouse.ring.stroke_width` | `3` | Ring stroke in px |
@@ -398,7 +398,7 @@ tests/
 3. Typing `hello` shows one box, and each character restarts its timer. A pause of 2 s before more typing starts a new run, and older rows move in the `keys.stack_direction` direction.
 4. `hello`, Enter, `world` shows `hello⏎` and `world` on two rows. Backspace erases the last character. With no character to erase, it shows `⌫`.
 5. Ctrl down, `c`, `v`, Ctrl up shows two rows, `Ctrl+c` and `Ctrl+v`. A following `m` starts a separate text run, and an earlier text run keeps its row until its timer ends.
-6. Shift+1 typed quickly appends `!` to the current run, with no `Shift` row. Shift alone shows a `Shift` row after 200 ms. Pressing `1` while that row is held replaces it with `!`, not merged into any earlier run. Shift+Tab shows `Shift+Tab`.
+6. Shift+1 typed quickly appends `!` to the current run, with no `Shift` row. Shift alone shows a `Shift` row after 200 ms. Pressing `1` while that row is held replaces it with `!`, not merged into any earlier run. Shift+Tab shows `Shift+⇥`.
 7. Shift+1 shows `!` on `us`. The same physical key shows the correct character after switching to `be`.
 8. Holding a key adds characters at the same rate as the focused application, and holding Backspace erases one character. With `text.held_color` set, the latest character of the held key uses the colour until release, and the rest of the run keeps `text.color`.
 9. Holding 1 then pressing Shift leaves the label as `1`.

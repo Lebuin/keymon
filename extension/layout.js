@@ -38,8 +38,8 @@ export function runItems(run) {
     if (run.kind === 'text')
         return run.items;
     return run.parts.flatMap(({label, held}, index) => [
-        ...(index > 0 ? [{text: '+', held: false}] : []),
-        {text: label, held},
+        ...(index > 0 ? [{text: '+', held: false, muted: true}] : []),
+        {text: label, held, muted: true},
     ]);
 }
 

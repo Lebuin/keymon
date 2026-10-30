@@ -519,7 +519,7 @@ test('a chorded key is labelled with its text, and Space with its name', () => {
     const d = setup();
     d.down(K.ctrl);
     d.tap(K.space, K.enter, K.left);
-    eq(d.shown(), ['Ctrl ←', 'Ctrl Enter', 'Ctrl Space'], 'labels');
+    eq(d.shown(), ['Ctrl ←', 'Ctrl ⏎', 'Ctrl ␣'], 'labels');
 });
 
 test('keys.names applies in modifier runs, to both variants', () => {
@@ -566,7 +566,7 @@ for (const [name, soft] of [['Shift', K.shift], ['AltGr', K.altgr]]) {
         const d = setup();
         d.down(soft);
         d.tap(K.tab);
-        eq(d.shown(), [`${name} Tab`], 'modifier run');
+        eq(d.shown(), [`${name} ⇥`], 'modifier run');
     });
 
     test(`${name} with a printable key within the delay is absorbed`, () => {
@@ -583,7 +583,7 @@ test('Shift+Tab with the ISO_Left_Tab keysym is labelled Tab', () => {
     const d = setup();
     d.down(K.shift);
     d.tap(K.leftTab);
-    eq(d.shown(), ['Shift Tab'], 'label');
+    eq(d.shown(), ['Shift ⇥'], 'label');
 });
 
 test('Shift+Tab ends the text run', () => {
@@ -593,7 +593,7 @@ test('Shift+Tab ends the text run', () => {
     d.tap(K.leftTab);
     d.up(K.shift);
     d.tap(K.s);
-    eq(d.shown(), ['s', 'Shift Tab', 'a'], 'three rows');
+    eq(d.shown(), ['s', 'Shift ⇥', 'a'], 'three rows');
 });
 
 test('a hard modifier within the delay shows with the soft one', () => {
@@ -640,7 +640,7 @@ test('a special key within the delay shows the modifier, even after its release'
     const d = setup();
     d.tap(K.shift);
     d.tap(K.tab);
-    eq(d.shown(), ['Shift Tab'], 'modifier run');
+    eq(d.shown(), ['Shift ⇥'], 'modifier run');
 });
 
 test('a hard modifier within the delay shows the soft one, even after its release', () => {
@@ -676,7 +676,7 @@ test('after absorption, a special key starts a modifier run', () => {
     d.tap(K.bang);
     d.wait(1000);
     d.tap(K.tab);
-    eq(d.shown(), ['Shift Tab', '!'], 'modifier run');
+    eq(d.shown(), ['Shift ⇥', '!'], 'modifier run');
 });
 
 test('after absorption, a mouse press starts a modifier run', () => {
@@ -727,9 +727,9 @@ test('a special key is added to a held standalone row', () => {
     d.down(K.shift);
     d.wait(200);
     d.tap(K.tab);
-    eq(d.shown(), ['Shift Tab'], 'same row');
+    eq(d.shown(), ['Shift ⇥'], 'same row');
     d.tap(K.tab);
-    eq(d.shown(), ['Shift Tab', 'Shift Tab'], 'a run holds one key');
+    eq(d.shown(), ['Shift ⇥', 'Shift ⇥'], 'a run holds one key');
 });
 
 test('after release, a standalone row stays and printable keys start a new row', () => {
@@ -777,7 +777,7 @@ test('the second Shift of a pair changes nothing', () => {
     eq(d.shown(), ['!'], 'still absorbed');
     d.up(K.shift);
     d.tap(K.tab);
-    eq(d.shown(), ['Shift Tab', '!'], 'the right one still counts as held');
+    eq(d.shown(), ['Shift ⇥', '!'], 'the right one still counts as held');
 });
 
 test('Shift and AltGr pending together resolve together', () => {

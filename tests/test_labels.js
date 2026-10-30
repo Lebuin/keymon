@@ -124,7 +124,7 @@ function testMarkup() {
 
     const parts = [{label: 'Ctrl', held: true}, {label: 'c', held: false}];
     eq(runItems({kind: 'modifier', parts}),
-        [{text: 'Ctrl', held: true}, {text: '+', held: false}, {text: 'c', held: false}],
+        [{text: 'Ctrl', held: true, muted: true}, {text: '+', held: false, muted: true}, {text: 'c', held: false, muted: true}],
         'modifier parts are joined by a plus');
     eq(runItems({kind: 'text', items}), items, 'text items pass through');
 }
