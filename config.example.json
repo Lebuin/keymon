@@ -15,6 +15,7 @@
     "padding_h": 16,
     "padding_v": 8,
     "corner_radius": 12,
+    "depth": true,
     "animation_ms": 150,
     "enter_scale": 0,
     "animate_first": false,

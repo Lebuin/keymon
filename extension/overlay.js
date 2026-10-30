@@ -8,7 +8,8 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {boxHeight, enteringPivot, enteringY, placeRows, restingItems, runItems, textMarkup} from './layout.js';
+import {drawShadow, SHADOW_MARGIN} from './boxshadow.js';
+import { boxHeight, enteringPivot, enteringY, placeRows, restingItems, runItems, textMarkup } from './layout.js';
 
 // Pango has no rgba() form, so a CSS colour becomes #rrggbbaa.
 function pangoColor(css) {
@@ -22,7 +23,7 @@ function pangoColor(css) {
     return `#${hex.join('')}`;
 }
 
-const FADE_PX = 16;
+const FADE_PX = 24;
 
 // Fades in from nothing at the left edge, over the fraction of the width in fade. Colours
 // here are premultiplied, so all four channels scale together.
@@ -40,14 +41,24 @@ export class KeyOverlay {
         this._config = config;
         this._guard = guard;
         this._slideId = 0; // The wait for a row to finish sliding in.
-        this._stack = []; // Newest first: {id, row, clip, label, fade, size, fading, targetY}.
+        this._stack = []; // Newest first: {id, row, shadow, sheen, clip, label, fade, size, fading, targetY}.
         this._colors = {
             held: pangoColor(config.text.held_color),
             muted: pangoColor(config.text.muted_color),
         };
-        this._boxStyle =
-            `background-color: ${config.box.background};` +
-            `border-radius: ${config.box.corner_radius}px;`;
+        const radius = `border-radius: ${config.box.corner_radius}px;`;
+        this._boxStyle = `background-color: ${config.box.background};${radius}`;
+        // Lit from above: a soft shadow below, a dark edge to stay crisp on light
+        // backgrounds, and on top a faint sheen with a bright line along the upper edge.
+        this._sheenStyle = null;
+        if (config.box.depth) {
+            this._boxStyle += 'border: 1px solid rgba(0,0,0,0.5);';
+            this._sheenStyle = `${radius}` +
+                'background-gradient-direction: vertical;' +
+                'background-gradient-start: rgba(255,255,255,0.12);' +
+                'background-gradient-end: rgba(255,255,255,0.01);' +
+                'box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);';
+        }
         this._textStyle =
             `font-family: ${config.text.font}; font-weight: ${config.text.weight};` +
             `font-size: ${config.text.size}px;` +
@@ -197,6 +208,17 @@ export class KeyOverlay {
     _makeEntry(run, maxWidth) {
         const inert = {reactive: false, can_focus: false, track_hover: false};
         const row = new St.Widget({...inert, style: this._boxStyle});
+        // Its own actor, so that the area it covers is redrawn when the box goes.
+        const shadow = new St.DrawingArea({...inert, visible: this._config.box.depth});
+        shadow.connect('repaint', area => {
+            const cr = area.get_context();
+            drawShadow(cr, row.width, row.height, this._config.box.corner_radius);
+            cr.$dispose();
+        });
+        shadow.set_position(-SHADOW_MARGIN, -SHADOW_MARGIN);
+        row.add_child(shadow);
+        const sheen = new St.Widget({...inert, style: this._sheenStyle, visible: this._sheenStyle !== null});
+        row.add_child(sheen);
         const clip = new St.Widget({...inert, clip_to_allocation: true});
         const label = new St.Label({...inert, style: this._textStyle});
         label.clutter_text.set({line_wrap: false, ellipsize: Pango.EllipsizeMode.NONE});
@@ -210,13 +232,13 @@ export class KeyOverlay {
         fade.enabled = false;
         clip.add_effect(fade);
 
-        const entry = {id: run.id, row, clip, label, fade, size: null, fading: false, targetY: null};
+        const entry = {id: run.id, row, shadow, sheen, clip, label, fade, size: null, fading: false, targetY: null};
         this._updateEntry(entry, run, maxWidth);
         return entry;
     }
 
     _updateEntry(entry, run, maxWidth) {
-        const {row, clip, label, fade} = entry;
+        const {row, shadow, sheen, clip, label, fade} = entry;
         const {padding_h: paddingH} = this._config.box;
         const items = runItems(run);
         const markup = shown => textMarkup(shown, this._colors, this._config.text.size, this._lineHeight);
@@ -230,6 +252,9 @@ export class KeyOverlay {
         const width = Math.min(textWidth + 2 * paddingH, maxWidth);
         const height = boxHeight(this._lineHeight, this._paddingV);
         row.set_size(width, height);
+        shadow.set_size(width + 2 * SHADOW_MARGIN, height + 2 * SHADOW_MARGIN);
+        shadow.queue_repaint();
+        sheen.set_size(width, height);
         clip.set_size(width, height);
         entry.size = {width, height};
 

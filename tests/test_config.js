@@ -48,6 +48,7 @@ function testValidation() {
     assertEqual(problem({keys: {max_runs: 1.5}}), 'keys.max_runs must be a whole number of 1 or more, not 1.5', 'max_runs must be whole');
     assertEqual(problem({mouse: {click: {fill_color: 'nope'}}}), 'mouse.click.fill_color must be a colour, not "nope"', 'a bad fill is named');
     assertEqual(problem({box: {enter_scale: 1.5}}), 'box.enter_scale must be a number from 0 to 1, not 1.5', 'enter_scale is limited');
+    assertEqual(problem({box: {depth: 'yes'}}), 'box.depth must be true or false, not "yes"', 'a bad depth is named');
     assertEqual(problem({box: {animate_first: true}}), null, 'animate_first takes a boolean');
     assertEqual(problem({box: {animate_first: 'yes'}}), 'box.animate_first must be true or false, not "yes"', 'a bad animate_first is named');
     assertEqual(problem({mouse: {click: {left_style: 'ripple'}}}), null, 'left_style takes ripple');
