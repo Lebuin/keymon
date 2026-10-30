@@ -46,7 +46,10 @@ function testValidation() {
     assertEqual(problem({text: {color: null}}), 'text.color must be a colour, not null', 'text.color cannot be null');
     assertEqual(problem({overlay: {origin_h: 'top'}}), 'overlay.origin_h must be left, center, or right, not "top"', 'a bad choice is named');
     assertEqual(problem({keys: {max_runs: 1.5}}), 'keys.max_runs must be a whole number of 1 or more, not 1.5', 'max_runs must be whole');
-    assertEqual(problem({mouse: {ripple: {start_opacity: 2}}}), 'mouse.ripple.start_opacity must be a number from 0 to 1, not 2', 'opacity is limited');
+    assertEqual(problem({mouse: {click: {fill_color: 'nope'}}}), 'mouse.click.fill_color must be a colour, not "nope"', 'a bad fill is named');
+    assertEqual(problem({mouse: {click: {left_style: 'ripple'}}}), null, 'left_style takes ripple');
+    assertEqual(problem({mouse: {click: {left_style: 'disc'}}}), 'mouse.click.left_style must be drawing or ripple, not "disc"', 'a bad left_style is named');
+    assertEqual(problem({mouse: {colors: {left: 'nope'}, ripple: {}}}), null, 'settings from before mouse.click are ignored');
     assertEqual(problem({text: {weight: 'heavy'}}), 'text.weight must be normal, bold, or a number from 100 to 900, not "heavy"', 'a bad weight is named');
     assertEqual(problem({toggle_shortcut: '<Super>'}), 'toggle_shortcut must be a shortcut such as <Super><Alt>k, not "<Super>"', 'a shortcut needs a key');
 }
@@ -65,8 +68,8 @@ function testReading() {
 
     GLib.file_set_contents(path, '{"text": {"color": "#111111", "held_color": null}}');
     const converted = readConfig(path, css => `converted ${css}`).config;
-    assertEqual([converted.text.color, converted.text.held_color, converted.mouse.colors.left],
-        ['converted #111111', null, 'converted #ffcc00'], 'colours are converted, and null stays');
+    assertEqual([converted.text.color, converted.text.held_color, converted.mouse.click.fill_color],
+        ['converted #111111', null, 'converted rgba(255,204,0,0.8)'], 'colours are converted, and null stays');
 
     GLib.file_set_contents(path, '{"box": ');
     const broken = readConfig(path, colorToCss);

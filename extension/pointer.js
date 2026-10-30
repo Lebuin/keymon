@@ -1,6 +1,6 @@
-// Draws the permanent ring around the pointer and a ripple for each mouse press, as
-// click-through actors in the top chrome. Polled once per frame, on the frame clock
-// of the monitor the ring is on.
+// Draws the permanent ring around the pointer and a small mouse drawing for each mouse
+// press, or a ripple for a left press if the config asks for it, as click-through actors in the top chrome. Polled once per frame, on the frame
+// clock of the monitor the ring is on.
 
 import Clutter from 'gi://Clutter';
 import Graphene from 'gi://Graphene';
@@ -9,6 +9,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {ButtonTracker} from './buttons.js';
+import {drawMouse} from './mousedrawing.js';
 
 const EASING = {
     'linear': Clutter.AnimationMode.LINEAR,
@@ -17,19 +18,25 @@ const EASING = {
     'ease-in-out': Clutter.AnimationMode.EASE_IN_OUT_QUAD,
 };
 
+function cairoColor(css) {
+    const {red, green, blue, alpha} = Clutter.Color.from_string(css)[1];
+    return [red / 255, green / 255, blue / 255, alpha / 255];
+}
+
 export class PointerDisplay {
     // onPress runs once per frame in which a tracked button went down, and
     // guard(callback) runs each frame.
     constructor(config, onPress, guard) {
         this._config = config;
         this._onPress = onPress;
-        this._held = new Map(); // Button name to the ripple it holds up.
+        this._held = new Map(); // Button name to the drawing it holds up.
+        this._appearing = new Set(); // Drawings still fading in.
         this._lastX = this._lastY = null;
         this._buttons = new ButtonTracker(global.get_pointer()[2]);
 
-        // Added first, so that ripples are drawn under the ring.
-        this._ripples = new St.Widget({reactive: false, can_focus: false, track_hover: false});
-        Main.layoutManager.addTopChrome(this._ripples, {affectsInputRegion: false});
+        // Added first, so that drawings are drawn under the ring.
+        this._drawings = new St.Widget({reactive: false, can_focus: false, track_hover: false});
+        Main.layoutManager.addTopChrome(this._drawings, {affectsInputRegion: false});
 
         const {radius, stroke_width: strokeWidth, stroke_color: strokeColor, fill_color: fillColor} = config.ring;
         this._ring = new St.Widget({
@@ -61,10 +68,11 @@ export class PointerDisplay {
         this._ring.destroy();
         this._ring = null;
 
-        Main.layoutManager.removeChrome(this._ripples);
-        this._ripples.destroy();
-        this._ripples = null;
+        Main.layoutManager.removeChrome(this._drawings);
+        this._drawings.destroy();
+        this._drawings = null;
         this._held.clear();
+        this._appearing.clear();
     }
 
     _onFrame() {
@@ -74,24 +82,36 @@ export class PointerDisplay {
             this._lastX = x;
             this._lastY = y;
             this._ring.set_position(x - radius, y - radius);
-            for (const ripple of this._held.values())
-                ripple.set_position(x - radius, y - radius);
+            // Held or fading, they all stay with the pointer.
+            for (const drawing of this._drawings.get_children())
+                drawing.set_position(x - radius, y - radius);
         }
 
         const {pressed, released} = this._buttons.update(modifiers);
         for (const button of released)
             this._release(button);
-        for (const button of pressed)
-            this._held.set(button, this._makeRipple(button, x - radius, y - radius));
+        for (const button of pressed) {
+            if (button === 'left' && this._config.click.left_style === 'ripple')
+                this._startRipple(x - radius, y - radius);
+            else
+                this._startDrawing(button, x - radius, y - radius);
+        }
         if (pressed.length > 0)
             this._onPress();
     }
 
-    // A disc at the ring's full size, scaled up from nothing. It keeps its opacity
-    // until its button is released, so a click's growth and fade run almost together.
-    _makeRipple(button, x, y) {
+    _startDrawing(button, x, y) {
+        const drawing = this._makeDrawing(button, x, y);
+        this._drawings.add_child(drawing);
+        this._held.set(button, drawing);
+        this._fadeIn(drawing);
+    }
+
+    // A disc at the ring's full size, scaled up from nothing. On release it fades, and
+    // finishes growing if it hasn't yet.
+    _startRipple(x, y) {
         const {radius} = this._config.ring;
-        const {start_opacity: startOpacity, duration_ms: duration, easing} = this._config.ripple;
+        const {fill_color: fillColor, ripple_duration_ms: duration, easing} = this._config.click;
         const ripple = new St.Widget({
             reactive: false,
             can_focus: false,
@@ -103,26 +123,72 @@ export class PointerDisplay {
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
             scale_x: 0,
             scale_y: 0,
-            opacity: Math.round(startOpacity * 255),
-            style: `background-color: ${this._config.colors[button]}; border-radius: ${radius}px;`,
+            style: `background-color: ${fillColor}; border-radius: ${radius}px;`,
         });
-        this._ripples.add_child(ripple);
+        this._drawings.add_child(ripple);
+        this._held.set('left', ripple);
         ripple.ease({scale_x: 1, scale_y: 1, duration, mode: EASING[easing]});
-        return ripple;
     }
 
-    // Stays where the pointer is now, and finishes growing if it hasn't yet.
-    _release(button) {
-        const ripple = this._held.get(button);
-        if (!ripple)
-            return;
-        this._held.delete(button);
-        const {duration_ms: duration, easing} = this._config.ripple;
-        ripple.ease({
+    // A mouse with this button filled in. Its lines take the ring's colour.
+    _makeDrawing(button, x, y) {
+        const {radius, stroke_color: strokeColor} = this._config.ring;
+        const fill = cairoColor(this._config.click.fill_color);
+        const line = cairoColor(strokeColor);
+        const drawing = new St.DrawingArea({
+            reactive: false,
+            can_focus: false,
+            track_hover: false,
+            x,
+            y,
+            width: radius * 2,
+            height: radius * 2,
+            opacity: 0,
+        });
+        drawing.connect('repaint', area => {
+            const cr = area.get_context();
+            drawMouse(cr, radius, button, fill, line);
+            cr.$dispose();
+        });
+        return drawing;
+    }
+
+    // Finishes appearing even if the button is already up, so a quick click still shows.
+    _fadeIn(drawing) {
+        const {duration_ms: duration, easing} = this._config.click;
+        this._appearing.add(drawing);
+        drawing.ease({
+            opacity: 255,
+            duration,
+            mode: EASING[easing],
+            onComplete: () => {
+                this._appearing.delete(drawing);
+                if (![...this._held.values()].includes(drawing))
+                    this._fadeOut(drawing);
+            },
+        });
+    }
+
+    _fadeOut(drawing, duration = this._config.click.duration_ms) {
+        const {easing} = this._config.click;
+        drawing.ease({
             opacity: 0,
             duration,
             mode: EASING[easing],
-            onComplete: () => ripple.destroy(),
+            onComplete: () => drawing.destroy(),
         });
+    }
+
+    _release(button) {
+        const drawing = this._held.get(button);
+        if (!drawing)
+            return;
+        this._held.delete(button);
+        if (drawing instanceof St.DrawingArea) {
+            if (!this._appearing.has(drawing))
+                this._fadeOut(drawing);
+        } else {
+            this._fadeOut(drawing, this._config.click.ripple_duration_ms);
+        }
     }
 }

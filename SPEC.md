@@ -15,7 +15,7 @@ keymon shows keystrokes and mouse activity on screen for screencasts. It runs on
 
 - Show held and recently pressed keys in a plain overlay.
 - Merge plain typing into readable text.
-- Highlight the pointer with a permanent ring, and show a ripple on each mouse press.
+- Highlight the pointer with a permanent ring, and show a drawing of the pressed button on each mouse press.
 - Make appearance and timing configurable through one file.
 - Read keyboard input only while the tool is switched on.
 - Appear in screen recordings made with GNOME's recorder and with OBS.
@@ -40,7 +40,7 @@ Wayland and Mutter impose this design. Mutter has no layer-shell, so a normal ap
 keymon-helper  ── JSON lines over Unix socket ──▶ GNOME Shell extension
 (Python, systemd, socket-activated)               ├─ display state machine
                                                   ├─ key overlay actors
-keymon-keymap  ── keymap table as JSON ─────────▶ ├─ pointer ring and ripples
+keymon-keymap  ── keymap table as JSON ─────────▶ ├─ pointer ring and click drawings
 (Python, unprivileged, run on demand)             └─ panel toggle and shortcut
 ```
 
@@ -250,15 +250,16 @@ A Shift or AltGr press while a hard modifier is held skips all of this and joins
 
 The ring looks the same whether or not a button is held.
 
-### Click ripple
+### Click drawing
 
-- On every press transition, a ripple starts at the pointer's position: a filled disc, drawn under the ring.
-- Its radius goes from 0 to the permanent ring's radius over `mouse.ripple.duration_ms`, at opacity `mouse.ripple.start_opacity`.
-- While its button is held, the ripple stays at that opacity and follows the pointer. This is the held state.
-- On release, it stops where the pointer is and its opacity goes to 0 over `mouse.ripple.duration_ms`. If it hasn't finished growing, it keeps growing while it fades. Both use ease-out easing by default.
-- Each button has its own colour.
-- Ripples overlap independently. A new click does not cancel an earlier ripple, and each held button has its own.
-- No new ripple starts on release, and a button already held at switch-on gets none.
+- On every press transition, a small drawing of a mouse fades in at the pointer's position, drawn under the ring, over `mouse.click.duration_ms`. It finishes fading in even if the button is released first, so a quick click still shows.
+- The ring is the mouse's outline. A 1 px line in the ring's stroke colour runs from the bottom about a third of the way up, and a scroll wheel with fully rounded bottom corners, also a 1 px outline, runs on from there to the top.
+- The part for the pressed button is filled with `mouse.click.fill_color`: the area left of the line and wheel, the wheel, or the area right of them. Its opacity comes only from that colour, so the drawing fades in to full opacity.
+- With `mouse.click.left_style` set to `ripple`, a left press instead starts a filled disc in `mouse.click.fill_color`, whose radius goes from 0 to the ring's radius over `mouse.click.ripple_duration_ms`. It follows the pointer while held and while fading, and on release it fades out over the same time, still growing if it hasn't finished.
+- While its button is held, the drawing stays and follows the pointer. This is the held state.
+- On release, it fades out over `mouse.click.duration_ms`, still following the pointer. Both fades use ease-out easing by default.
+- Drawings overlap independently. A new click does not cancel an earlier drawing, and each held button has its own.
+- No new drawing starts on release, and a button already held at switch-on gets none.
 
 A press and release that both fall between two frames is missed. At 60 Hz this needs a click shorter than about 17 ms, which is accepted.
 
@@ -340,16 +341,15 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `keys.stack_direction` | `"up"` | Direction older runs move: `up` or `down` |
 | `keys.space_symbol` | `"␣"` | Space, in any run |
 | `keys.names` | `{}` | Keysym name to label overrides |
-| `mouse.ring.radius` | `28` | Permanent ring and final ripple radius in px |
+| `mouse.ring.radius` | `28` | Permanent ring and click drawing radius in px |
 | `mouse.ring.stroke_width` | `3` | Ring stroke in px |
 | `mouse.ring.stroke_color` | `"#ffcc00"` | Ring colour |
 | `mouse.ring.fill_color` | `"rgba(0,0,0,0)"` | Ring fill |
-| `mouse.colors.left` | `"#ffcc00"` | Left button ripple colour |
-| `mouse.colors.middle` | `"#00ccff"` | Middle button ripple colour |
-| `mouse.colors.right` | `"#cc00ff"` | Right button ripple colour |
-| `mouse.ripple.duration_ms` | `300` | Time a ripple takes to grow, and to fade after release |
-| `mouse.ripple.start_opacity` | `0.8` | Opacity of a ripple until its button is released |
-| `mouse.ripple.easing` | `"ease-out"` | `linear`, `ease-in`, `ease-out`, or `ease-in-out` |
+| `mouse.click.fill_color` | `"rgba(255,204,0,0.8)"` | Fill of the pressed button in a click drawing, and of a left ripple, including its opacity |
+| `mouse.click.duration_ms` | `150` | Time a click drawing takes to fade in, and to fade out after release |
+| `mouse.click.left_style` | `"drawing"` | What a left press shows: `drawing` or `ripple` |
+| `mouse.click.ripple_duration_ms` | `300` | Time a left ripple takes to grow, and to fade after release |
+| `mouse.click.easing` | `"ease-out"` | `linear`, `ease-in`, `ease-out`, or `ease-in-out` |
 
 ## 12. Error handling
 
@@ -407,9 +407,9 @@ tests/
 **Mouse**
 
 10. The ring follows the pointer across both monitors, with no visible offset at scale 1.0.
-11. Every left, middle, and right press gives one ripple from radius 0 to ring radius, fading out after release, in that button's colour.
-12. Rapid clicks produce overlapping ripples.
-13. While dragging, the ring doesn't change and the ripple stays visible and follows the pointer, until it fades on release.
+11. Every left, middle, and right press quickly fades in one mouse drawing with that button filled in, fading out after release. With `mouse.click.left_style` set to `ripple`, a left press instead gives one ripple from radius 0 to ring radius.
+12. Rapid clicks produce overlapping drawings.
+13. While dragging, the ring doesn't change and the drawing stays visible and follows the pointer, including while it fades after release.
 
 **System**
 

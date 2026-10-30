@@ -51,14 +51,11 @@ const DEFAULTS = {
             stroke_color: '#ffcc00',
             fill_color: 'rgba(0,0,0,0)',
         },
-        colors: {
-            left: '#ffcc00',
-            middle: '#00ccff',
-            right: '#cc00ff',
-        },
-        ripple: {
-            duration_ms: 300,
-            start_opacity: 0.8,
+        click: {
+            fill_color: 'rgba(255,204,0,0.8)',
+            duration_ms: 150,
+            left_style: 'drawing',
+            ripple_duration_ms: 300,
             easing: 'ease-out',
         },
     },
@@ -74,8 +71,7 @@ export function mergeConfig(file) {
         keys: {...DEFAULTS.keys, ...file.keys},
         mouse: {
             ring: {...DEFAULTS.mouse.ring, ...file.mouse?.ring},
-            colors: {...DEFAULTS.mouse.colors, ...file.mouse?.colors},
-            ripple: {...DEFAULTS.mouse.ripple, ...file.mouse?.ripple},
+            click: {...DEFAULTS.mouse.click, ...file.mouse?.click},
         },
     };
 }
@@ -96,7 +92,7 @@ const COLOR_OR_NULL = 'color or null';
 const H_POINT = [isOneOf('left', 'center', 'right'), 'left, center, or right'];
 const V_POINT = [isOneOf('top', 'center', 'bottom'), 'top, center, or bottom'];
 
-const SECTIONS = ['overlay', 'box', 'text', 'keys', 'keys.names', 'mouse', 'mouse.ring', 'mouse.colors', 'mouse.ripple'];
+const SECTIONS = ['overlay', 'box', 'text', 'keys', 'keys.names', 'mouse', 'mouse.ring', 'mouse.click'];
 
 const RULES = {
     'toggle_shortcut': [value => isText(value) && /^(<\w+>)*[^<>\s]+$/.test(value), 'a shortcut such as <Super><Alt>k'],
@@ -134,12 +130,11 @@ const RULES = {
     'mouse.ring.stroke_width': SIZE,
     'mouse.ring.stroke_color': COLOR,
     'mouse.ring.fill_color': COLOR,
-    'mouse.colors.left': COLOR,
-    'mouse.colors.middle': COLOR,
-    'mouse.colors.right': COLOR,
-    'mouse.ripple.duration_ms': SIZE,
-    'mouse.ripple.start_opacity': [value => isNumber(value) && value >= 0 && value <= 1, 'a number from 0 to 1'],
-    'mouse.ripple.easing': [isOneOf('linear', 'ease-in', 'ease-out', 'ease-in-out'), 'linear, ease-in, ease-out, or ease-in-out'],
+    'mouse.click.fill_color': COLOR,
+    'mouse.click.duration_ms': SIZE,
+    'mouse.click.left_style': [isOneOf('drawing', 'ripple'), 'drawing or ripple'],
+    'mouse.click.ripple_duration_ms': SIZE,
+    'mouse.click.easing': [isOneOf('linear', 'ease-in', 'ease-out', 'ease-in-out'), 'linear, ease-in, ease-out, or ease-in-out'],
 };
 
 function lookUp(object, path) {

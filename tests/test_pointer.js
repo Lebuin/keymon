@@ -1,6 +1,6 @@
 // Run with: gjs -m tests/test_pointer.js
 //
-// Covers the button transitions behind the ripples, and merging the mouse config.
+// Covers the button transitions behind the click drawings, and merging the mouse config.
 
 import System from 'system';
 
@@ -53,14 +53,12 @@ function testConfig() {
     const defaults = mergeConfig({}).mouse;
     eq(defaults.ring, {radius: 28, stroke_width: 3, stroke_color: '#ffcc00', fill_color: 'rgba(0,0,0,0)'},
         'ring defaults');
-    eq(defaults.colors, {left: '#ffcc00', middle: '#00ccff', right: '#cc00ff'}, 'colour defaults');
-    eq(defaults.ripple, {duration_ms: 300, start_opacity: 0.8, easing: 'ease-out'}, 'ripple defaults');
+    eq(defaults.click, {fill_color: 'rgba(255,204,0,0.8)', duration_ms: 150, left_style: 'drawing', ripple_duration_ms: 300, easing: 'ease-out'}, 'click defaults');
 
-    const {mouse} = mergeConfig({mouse: {ring: {radius: 40}, colors: {right: '#ff0000'}}});
+    const {mouse} = mergeConfig({mouse: {ring: {radius: 40}}});
     eq(mouse.ring.radius, 40, 'a nested key is used');
     eq(mouse.ring.stroke_width, 3, 'its neighbours keep their defaults');
-    eq(mouse.colors, {left: '#ffcc00', middle: '#00ccff', right: '#ff0000'}, 'one colour can change');
-    eq(mouse.ripple.duration_ms, 300, 'an absent group keeps its defaults');
+    eq(mouse.click.duration_ms, 150, 'an absent group keeps its defaults');
 }
 
 testButtons();
