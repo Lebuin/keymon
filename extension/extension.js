@@ -1,6 +1,5 @@
-// Stage 1 prototype: a click-through ring and a static box, plus logged probes
-// for the unknowns in SPEC.md section 15. Probe results go to the journal under
-// a "keymon:" prefix.
+// Stage 2: a click-through ring, and a box that shows raw key codes from the
+// helper. The toggle shortcut switches both on and off.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -11,11 +10,13 @@ import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {getInputSourceManager} from 'resource:///org/gnome/shell/ui/status/keyboard.js';
+
+import {KeyClient, SOCKET_PATH} from './keyclient.js';
 
 const RING_RADIUS = 28;
 const BOX_OFFSET_Y = -80;
 const DEFAULT_SHORTCUT = '<Super><Alt>k';
+const RAW_EVENTS_SHOWN = 8;
 
 function log(message) {
     console.log(`keymon: ${message}`);
@@ -39,34 +40,23 @@ export default class KeymonExtension extends Extension {
         this._on = false;
 
         this._applyShortcut(readConfig());
-        const action = Main.wm.addKeybinding(
+        Main.wm.addKeybinding(
             'toggle-shortcut',
             this._settings,
             Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             () => this._toggle());
-        log(`probe keybinding: action=${action} value=${this._settings.get_strv('toggle-shortcut')}`);
-
-        this._inputSources = getInputSourceManager();
-        this._sourceChangedId = this._inputSources.connect(
-            'current-source-changed', () => this._probeInputSource());
 
         this._monitorsChangedId = Main.layoutManager.connect(
             'monitors-changed', () => this._placeBox());
-
-        this._probeMonitors();
-        this._probeInputSource();
-        this._show();
     }
 
     disable() {
         this._hide();
 
         Main.layoutManager.disconnect(this._monitorsChangedId);
-        this._inputSources.disconnect(this._sourceChangedId);
         Main.wm.removeKeybinding('toggle-shortcut');
 
-        this._inputSources = null;
         this._settings = null;
     }
 
@@ -88,7 +78,7 @@ export default class KeymonExtension extends Extension {
         this._on = true;
 
         this._box = new St.Label({
-            text: 'keymon',
+            text: 'connecting',
             reactive: false,
             can_focus: false,
             track_hover: false,
@@ -114,12 +104,26 @@ export default class KeymonExtension extends Extension {
         // Direct scanout of a fullscreen window would bypass our actors.
         Meta.disable_unredirect_for_display(global.display);
         this._startTracking();
+
+        this._rawEvents = [];
+        this._client = new KeyClient(SOCKET_PATH, {
+            onConnected: () => this._setBoxText('connected'),
+            onKey: (code, down) => this._showKey(code, down),
+            onDisconnected: message => {
+                log(`helper unavailable: ${message}`);
+                this._setBoxText('helper unavailable');
+            },
+        });
+        this._client.connect();
     }
 
     _hide() {
         if (!this._on)
             return;
         this._on = false;
+
+        this._client.close();
+        this._client = null;
 
         this._stopTracking();
         Meta.enable_unredirect_for_display(global.display);
@@ -157,6 +161,17 @@ export default class KeymonExtension extends Extension {
         this._ring.set_position(x - RING_RADIUS, y - RING_RADIUS);
     }
 
+    _showKey(code, down) {
+        this._rawEvents.push(`${code}${down ? '↓' : '↑'}`);
+        this._rawEvents = this._rawEvents.slice(-RAW_EVENTS_SHOWN);
+        this._setBoxText(this._rawEvents.join(' '));
+    }
+
+    _setBoxText(text) {
+        this._box.text = text;
+        this._placeBox();
+    }
+
     _placeBox() {
         if (!this._box)
             return;
@@ -166,22 +181,5 @@ export default class KeymonExtension extends Extension {
         this._box.set_position(
             Math.round(monitor.x + (monitor.width - width) / 2),
             Math.round(monitor.y + monitor.height - height + BOX_OFFSET_Y));
-    }
-
-    _probeMonitors() {
-        const manager = global.backend.get_monitor_manager();
-        for (const connector of ['eDP-1', 'DP-1', 'NOT-A-CONNECTOR'])
-            log(`probe connector: ${connector} -> ${manager.get_monitor_for_connector(connector)}`);
-        const monitors = Main.layoutManager.monitors.map(m => `${m.index}:${m.x},${m.y} ${m.width}x${m.height}`);
-        log(`probe monitors: primary=${Main.layoutManager.primaryIndex} ${monitors.join(' ')}`);
-    }
-
-    _probeInputSource() {
-        const source = this._inputSources.currentSource;
-        const [layout, variant = ''] = source?.xkbId?.split('+') ?? [];
-        const options = new Gio.Settings({schema_id: 'org.gnome.desktop.input-sources'})
-            .get_strv('xkb-options');
-        log(`probe input source: type=${source?.type} layout=${layout} variant=${variant} ` +
-            `options=[${options}]`);
     }
 }

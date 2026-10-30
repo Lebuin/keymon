@@ -1,0 +1,13 @@
+[Unit]
+Description=keymon key helper socket
+
+[Socket]
+ListenStream=/run/keymon/keys.sock
+# install.sh fills in the user who runs GNOME Shell.
+SocketUser=@USER@
+SocketMode=0600
+DirectoryMode=0755
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,216 @@
+#!/usr/bin/python3
+# Forwards raw key presses and releases from /dev/input to one client over the
+# systemd-activated Unix socket, as JSON lines. Runs only while a client is
+# connected, and writes no key data to logs or disk. See SPEC.md section 5.
+
+import errno
+import glob
+import json
+import os
+import selectors
+import socket
+import sys
+import time
+
+import evdev
+from evdev import ecodes
+
+DEVICE_GLOB = '/dev/input/event*'
+LISTEN_FD = 3
+ACCEPT_TIMEOUT_SECONDS = 10
+RESCAN_SECONDS = 2
+SEND_TIMEOUT_SECONDS = 5
+
+
+class ClientGone(Exception):
+    pass
+
+
+def log(message):
+    print(f'keymon-helper: {message}', file=sys.stderr, flush=True)
+
+
+def is_button(code):
+    # The BTN_* ranges of linux/input-event-codes.h.
+    return 0x100 <= code <= 0x151 or 0x220 <= code <= 0x223 or 0x2c0 <= code <= 0x2e7
+
+
+def has_keys(device):
+    codes = device.capabilities(absinfo=False).get(ecodes.EV_KEY, [])
+    return any(not is_button(code) for code in codes)
+
+
+class Keyboard:
+    def __init__(self, device):
+        self.device = device
+        self.held = set()
+        self.dropping = False
+
+    def process(self, events):
+        """Returns the (code, down) changes that a batch of events amounts to."""
+        changes = []
+        for event in events:
+            if event.type == ecodes.EV_SYN:
+                if event.code == ecodes.SYN_DROPPED:
+                    self.dropping = True
+                elif event.code == ecodes.SYN_REPORT and self.dropping:
+                    self.dropping = False
+                    changes += self.sync()
+            elif (event.type == ecodes.EV_KEY and not self.dropping
+                    and event.value in (0, 1) and not is_button(event.code)):
+                changes += self.apply(event.code, event.value == 1)
+        return changes
+
+    def apply(self, code, down):
+        if down:
+            self.held.add(code)
+        else:
+            self.held.discard(code)
+        return [(code, down)]
+
+    def sync(self):
+        current = {code for code in self.device.active_keys() if not is_button(code)}
+        changes = ([(code, False) for code in sorted(self.held - current)]
+                   + [(code, True) for code in sorted(current - self.held)])
+        self.held = current
+        return changes
+
+    def release_all(self):
+        changes = [(code, False) for code in sorted(self.held)]
+        self.held = set()
+        return changes
+
+
+class Helper:
+    def __init__(self, listener, client):
+        self.listener = listener
+        self.client = client
+        self.client.settimeout(SEND_TIMEOUT_SECONDS)
+        self.selector = selectors.DefaultSelector()
+        self.selector.register(self.client, selectors.EVENT_READ, self.on_client)
+        self.selector.register(self.listener, selectors.EVENT_READ, self.on_listener)
+        self.keyboards = {}
+        # Devices without keys, by path, with the node's ctime to notice reuse.
+        self.ignored = {}
+        self.logged_count = 0
+
+    def run(self):
+        """Forwards keys until the client goes away."""
+        try:
+            self.rescan()
+            next_scan = time.monotonic() + RESCAN_SECONDS
+            while True:
+                timeout = max(0, next_scan - time.monotonic())
+                for key, _ in self.selector.select(timeout):
+                    key.data()
+                if time.monotonic() >= next_scan:
+                    self.rescan()
+                    next_scan = time.monotonic() + RESCAN_SECONDS
+        except ClientGone:
+            pass
+        finally:
+            for path in list(self.keyboards):
+                self.forget(path)
+            self.selector.close()
+            self.client.close()
+
+    def rescan(self):
+        # Not evdev.list_devices(): it skips devices we can't write to, and
+        # DeviceAllow=char-input r makes that all of them.
+        paths = set(glob.glob(DEVICE_GLOB))
+        for path in set(self.ignored) - paths:
+            del self.ignored[path]
+        for path in paths - set(self.keyboards):
+            self.try_open(path)
+        if len(self.keyboards) != self.logged_count:
+            self.logged_count = len(self.keyboards)
+            log(f'reading {self.logged_count} devices with keys')
+
+    def try_open(self, path):
+        try:
+            ctime = os.stat(path).st_ctime_ns
+            if self.ignored.get(path) == ctime:
+                return
+            device = evdev.InputDevice(path)
+        except OSError as e:
+            # Usually a node that udev has not finished with. The next rescan retries.
+            log(f'cannot open {path}: {errno.errorcode.get(e.errno, e.errno)}')
+            return
+        try:
+            usable = has_keys(device)
+        except OSError:
+            usable = False
+        if not usable:
+            device.close()
+            self.ignored[path] = ctime
+            return
+        self.keyboards[path] = Keyboard(device)
+        self.selector.register(device, selectors.EVENT_READ, lambda: self.on_device(path))
+
+    def forget(self, path):
+        keyboard = self.keyboards.pop(path)
+        self.selector.unregister(keyboard.device)
+        keyboard.device.close()
+        return keyboard
+
+    def on_device(self, path):
+        keyboard = self.keyboards[path]
+        try:
+            events = list(keyboard.device.read())
+        except BlockingIOError:
+            return
+        except OSError:
+            self.forget(path)
+            self.send(keyboard.release_all())
+            return
+        try:
+            changes = keyboard.process(events)
+        except OSError:
+            # A device that vanished during the state query after SYN_DROPPED.
+            self.forget(path)
+            changes = keyboard.release_all()
+        self.send(changes)
+
+    def on_client(self):
+        # The protocol is one-way, so anything readable is either EOF or ignored.
+        try:
+            data = self.client.recv(64)
+        except OSError:
+            raise ClientGone from None
+        if not data:
+            raise ClientGone
+
+    def on_listener(self):
+        # One client at a time: others are turned away.
+        try:
+            extra, _ = self.listener.accept()
+        except (BlockingIOError, TimeoutError):
+            return
+        extra.close()
+
+    def send(self, changes):
+        if not changes:
+            return
+        lines = ''.join(json.dumps({'code': code, 'down': down}) + '\n' for code, down in changes)
+        try:
+            self.client.sendall(lines.encode())
+        except OSError:
+            raise ClientGone from None
+
+
+def main():
+    if os.environ.get('LISTEN_FDS') != '1':
+        sys.exit('keymon-helper: expected one socket from systemd')
+
+    listener = socket.socket(fileno=LISTEN_FD)
+    listener.settimeout(ACCEPT_TIMEOUT_SECONDS)
+    try:
+        client, _ = listener.accept()
+    except TimeoutError:
+        return
+    listener.setblocking(False)
+    Helper(listener, client).run()
+
+
+if __name__ == '__main__':
+    main()

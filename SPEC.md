@@ -314,6 +314,8 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 4. Installs the extension to `~/.local/share/gnome-shell/extensions/keymon@local/`, with `keymon-keymap`, and compiles its GSettings schema.
 5. Tells the user to log out and in, because Wayland GNOME Shell cannot load a new extension without that.
 
+If the extension path is already a symlink to this repo, as `dev/link-extension.sh` makes it, step 4 keeps the link and only compiles the schema. A symlink to anywhere else stops the installer before it changes anything.
+
 `uninstall.sh` reverses all of these steps. It leaves the config file in place.
 
 ### Proposed repo layout

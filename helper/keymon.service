@@ -1,0 +1,37 @@
+[Unit]
+Description=keymon key helper
+Requires=keymon.socket
+After=keymon.socket
+# Quick on/off toggling must not trip the start limit, which would fail the socket.
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/local/lib/keymon/keymon-helper
+Restart=no
+
+# Required by SPEC.md section 5.
+DynamicUser=yes
+SupplementaryGroups=input
+NoNewPrivileges=yes
+PrivateNetwork=yes
+ProtectSystem=strict
+ProtectHome=yes
+DevicePolicy=closed
+DeviceAllow=char-input r
+
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
