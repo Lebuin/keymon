@@ -40,6 +40,21 @@ export class KeyOverlay {
 
         this._root = new St.Widget({reactive: false, can_focus: false, track_hover: false});
         Main.layoutManager.addTopChrome(this._root, {affectsInputRegion: false});
+        this._reducePadding();
+    }
+
+    // Extra line height also goes above the first line and below the last, so the
+    // padding gives that back to keep the configured space around the text.
+    _reducePadding() {
+        const {padding_h: paddingH, padding_v: paddingV} = this._config.box;
+        const probe = new St.Label({text: 'x', style: this._boxStyle});
+        this._root.add_child(probe);
+        const line = probe.get_preferred_height(-1)[1] - 2 * paddingV;
+        probe.destroy();
+
+        const extra = line * (this._config.text.line_height - 1) / 2;
+        const padding = Math.max(Math.round(paddingV - extra), 0);
+        this._boxStyle += `padding: ${padding}px ${paddingH}px;`;
     }
 
     destroy() {
@@ -125,7 +140,8 @@ export class KeyOverlay {
             line_wrap_mode: Pango.WrapMode.WORD_CHAR,
             ellipsize: Pango.EllipsizeMode.NONE,
         });
-        row.clutter_text.set_markup(textMarkup(runItems(run), this._colors));
+        const {size, line_height: lineHeight} = this._config.text;
+        row.clutter_text.set_markup(textMarkup(runItems(run), this._colors, size, lineHeight));
         this._root.add_child(row);
 
         // A row wider than the limit wraps, which makes it taller.

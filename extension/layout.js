@@ -33,6 +33,11 @@ export function placeRows(monitor, sizes, overlay, direction) {
     return positions;
 }
 
+// Fonts draw this symbol much larger than the text around it. Clutter ignores
+// relative sizes in markup, so it gets an absolute size, in 1024ths of a point.
+const OVERSIZED_SYMBOLS = {'⌫': 0.7};
+const PANGO_UNITS_PER_PX = 1024 * 72 / 96;
+
 // The pieces of text in a run's one box. Modifier run parts are joined by a plus.
 export function runItems(run) {
     if (run.kind === 'text')
@@ -49,13 +54,15 @@ export function runItems(run) {
 // in front. A zero-width space would let a long word wrap past an empty first line.
 // When a box wraps, word joiners keep each item whole, zero-width
 // spaces allow a break after breakAfter items, and no hyphen appears at a break.
-export function textMarkup(items, colors) {
+export function textMarkup(items, colors, textSize, lineHeight = 1) {
     const content = items.map(({text, held, muted, breakAfter}) => {
         const whole = [...text].join('\u2060');
-        const escaped = GLib.markup_escape_text(whole, -1);
+        const escaped = text in OVERSIZED_SYMBOLS
+            ? `<span size="${Math.round(textSize * OVERSIZED_SYMBOLS[text] * PANGO_UNITS_PER_PX)}">${text}</span>`
+            : GLib.markup_escape_text(whole, -1);
         const color = (held && colors.held) || (muted && colors.muted);
         const span = color ? `<span foreground="${color}">${escaped}</span>` : escaped;
         return breakAfter ? `${span}\u200b` : span;
     }).join('');
-    return `<span insert_hyphens="false">\u2060${content}</span>`;
+    return `<span insert_hyphens="false" line_height="${lineHeight}">\u2060${content}</span>`;
 }

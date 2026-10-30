@@ -112,7 +112,7 @@ function testMarkup() {
         {text: '&', held: false, muted: true},
         {text: '⏎', held: true, muted: true},
     ];
-    const wrapped = content => `<span insert_hyphens="false">\u2060${content}</span>`;
+    const wrapped = content => `<span insert_hyphens="false" line_height="1">\u2060${content}</span>`;
     eq(textMarkup(items, {held: '#ff0000ff', muted: '#00ff00ff'}),
         wrapped('a<span foreground="#ff0000ff">&lt;</span><span foreground="#00ff00ff">&amp;</span>' +
         '<span foreground="#ff0000ff">⏎</span>'), 'held wins over muted, and all are escaped');
@@ -121,6 +121,9 @@ function testMarkup() {
         'a held key uses the muted colour with no held colour');
     eq(textMarkup([{text: '‹F5›'}, {text: '␣', breakAfter: true}], {held: null, muted: null}),
         wrapped('‹\u2060F\u20605\u2060›␣\u200b'), 'tokens stay whole, and a space allows a break');
+
+    eq(textMarkup([{text: '⌫'}], {held: null, muted: null}, 28),
+        wrapped('<span size="15053">⌫</span>'), 'the Backspace symbol is scaled down');
 
     const parts = [{label: 'Ctrl', held: true}, {label: 'c', held: false}];
     eq(runItems({kind: 'modifier', parts}),

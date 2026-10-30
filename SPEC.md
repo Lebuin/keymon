@@ -329,6 +329,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `text.muted_color` | `"rgba(255,255,255,0.8)"` | Text colour for modifier runs, and for special keys and the space symbol in a text run. `null` uses `text.color` |
 | `text.size` | `28` | Text size in px |
 | `text.font` | `"sans"` | Font family |
+| `text.line_height` | `1.25` | Line height, as a multiple of the normal height. The space above the first line and below the last comes out of `box.padding_v`, so a box keeps its size unless the padding runs out |
 | `text.weight` | `"normal"` | Font weight: `normal`, `bold`, or a number from `100` to `900` |
 | `keys.run_visible_ms` | `3000` | How long a run stays visible |
 | `keys.run_gap_ms` | `2000` | Time without typing before a new text run starts |

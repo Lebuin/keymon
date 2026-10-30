@@ -33,6 +33,7 @@ const DEFAULTS = {
         size: 28,
         font: 'sans',
         weight: 'normal',
+        line_height: 1.25,
     },
     keys: {
         ...DEFAULT_KEYS,
