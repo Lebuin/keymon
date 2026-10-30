@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.keymon" path="/org/gnome/shell/extensions/keymon/">
+    <key name="toggle-shortcut" type="as">
+      <default><![CDATA[['<Super><Alt>k']]]></default>
+      <summary>Global on/off shortcut</summary>
+      <description>Written by the extension from toggle_shortcut in config.json.</description>
+    </key>
+  </schema>
+</schemalist>

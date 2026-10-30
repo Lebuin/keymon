@@ -1,0 +1,8 @@
+{
+  "uuid": "keymon@local",
+  "name": "keymon",
+  "description": "Shows keystrokes and mouse activity on screen for screencasts.",
+  "shell-version": ["46"],
+  "session-modes": ["user"],
+  "settings-schema": "org.gnome.shell.extensions.keymon"
+}
