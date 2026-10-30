@@ -34,7 +34,8 @@ export class KeyOverlay {
             `background-color: ${config.box.background};` +
             `padding: ${config.box.padding_v}px ${config.box.padding_h}px;` +
             `border-radius: ${config.box.corner_radius}px;` +
-            `font-family: ${config.text.font}; font-size: ${config.text.size}px;` +
+            `font-family: ${config.text.font}; font-weight: ${config.text.weight};` +
+            `font-size: ${config.text.size}px;` +
             `color: ${config.text.color};`;
 
         this._root = new St.Widget({reactive: false, can_focus: false, track_hover: false});

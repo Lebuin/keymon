@@ -32,6 +32,7 @@ const DEFAULTS = {
         muted_color: 'rgba(255,255,255,0.8)',
         size: 28,
         font: 'sans',
+        weight: 'normal',
     },
     keys: {
         ...DEFAULT_KEYS,
