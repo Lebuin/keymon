@@ -83,6 +83,7 @@ export class DisplayState {
     // Forgets everything, for when the helper disconnects or keymon switches off.
     reset() {
         this._runs = []; // Newest first.
+        this._limited = []; // Ids of runs removed by the limit since takeLimited().
         this._held = new Map(); // Key code to press.
         this._textRun = null; // The run that typing can still join.
         this._pending = new Set(); // Soft modifiers waiting for the delay.
@@ -175,6 +176,14 @@ export class DisplayState {
             return false;
         this._runs.pop();
         return true;
+    }
+
+    // Returns the ids of runs that keys.max_runs removed since the last call, which
+    // the overlay deletes without a fade.
+    takeLimited() {
+        const limited = this._limited;
+        this._limited = [];
+        return limited;
     }
 
     // Newest first. A text run is {id, kind: 'text', items: [{text, held, muted, breakAfter}]},
@@ -312,8 +321,10 @@ export class DisplayState {
     }
 
     _limitRuns() {
-        if (this._runs)
-            this._runs.length = Math.min(this._runs.length, Math.max(this._keys.max_runs, 1));
+        if (!this._runs)
+            return;
+        const over = this._runs.splice(Math.max(this._keys.max_runs, 1));
+        this._limited.push(...over.map(run => run.id));
     }
 
     _printableDown(press) {

@@ -69,12 +69,14 @@ export class KeyOverlay {
     // Rebuilds the rows. Runs that would leave the monitor are removed from the
     // state as well, so they don't come back when newer runs expire. A row whose
     // run is gone keeps its place in the stack while it fades out, so new rows push
-    // it along, and the rows beyond it close the gap when it is done.
+    // it along, and the rows beyond it close the gap when it is done. A run removed
+    // by keys.max_runs goes at once, with no fade.
     render(state) {
         const monitor = this._monitor();
         const maxWidth = Math.min(this._config.box.max_width, monitor.width);
         const runs = state.runs();
         const shown = new Set(this._stack.map(entry => entry.id));
+        const limited = new Set(state.takeLimited());
         const rebuilt = new Map(runs.map(run => [run.id, this._makeEntry(run, maxWidth)]));
 
         // New runs are always the newest, and the rest keep their order.
@@ -83,6 +85,8 @@ export class KeyOverlay {
             if (rebuilt.has(entry.id)) {
                 entry.row.destroy();
                 stack.push(rebuilt.get(entry.id));
+            } else if (limited.has(entry.id)) {
+                entry.row.destroy();
             } else if (entry.fading || this._fadeOut(entry, state)) {
                 stack.push(entry);
             }

@@ -268,6 +268,15 @@ test('a run disappearing closes the gap', () => {
     eq(d.shown(), ['Super', 'Alt'], 'the oldest is gone');
 });
 
+test('takeLimited reports the runs max_runs removed, once', () => {
+    const d = setup({max_runs: 1});
+    d.tap(K.ctrl);
+    const first = d.state.runs()[0].id;
+    d.tap(K.alt);
+    eq(d.state.takeLimited(), [first], 'the removed run is reported');
+    eq(d.state.takeLimited(), [], 'and only once');
+});
+
 test('dropOldest never removes the newest run', () => {
     const d = setup();
     d.tap(K.ctrl, K.alt);

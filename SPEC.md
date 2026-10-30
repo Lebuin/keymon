@@ -165,7 +165,7 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 - The newest run sits at the anchor point. A new run moves the older ones by one row, in the direction set by `keys.stack_direction` (`up` or `down`).
 - When a run disappears, it fades out over `box.fade_out_ms`. It keeps its place in the stack while it fades, so new rows still push it along, and the runs further from the anchor close the gap when the fade ends.
 - Movement is instant, with no animation. A row replaced in place (see "Shift and AltGr") doesn't fade.
-- There are at most `keys.max_runs` rows. Past that limit, or when a row would leave the monitor, the oldest run is removed early. The newest run is never removed this way.
+- There are at most `keys.max_runs` rows. Past that limit, or when a row would leave the monitor, the oldest run is removed early and at once, with no fade. The newest run is never removed this way.
 
 ### Text runs
 
