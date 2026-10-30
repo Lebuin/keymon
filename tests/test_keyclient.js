@@ -4,7 +4,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import System from 'system';
 
-import {KeyClient} from '../extension/keyclient.js';
+import {Backoff, KeyClient} from '../extension/keyclient.js';
 
 const directory = GLib.dir_make_tmp('keymon-XXXXXX');
 const path = `${directory}/keys.sock`;
@@ -26,7 +26,7 @@ function collect() {
     const client = new KeyClient(path, {
         onConnected: () => seen.push('connected'),
         onKey: (code, down) => seen.push([code, down]),
-        onDisconnected: () => seen.push('disconnected'),
+        onDisconnected: (_message, wasConnected) => seen.push(wasConnected ? 'disconnected' : 'not connected'),
     });
     return {seen, client};
 }
@@ -42,11 +42,21 @@ function write(connection, text) {
     connection.get_output_stream().write_all(new TextEncoder().encode(text), null);
 }
 
+function testBackoff() {
+    const backoff = new Backoff();
+    const delays = Array.from({length: 7}, () => backoff.next());
+    assertEqual(delays, [1000, 2000, 4000, 8000, 16000, 30000, 30000], 'the wait doubles up to 30 s');
+    backoff.reset();
+    assertEqual(backoff.next(), 1000, 'reset() starts over');
+}
+
 async function run() {
+    testBackoff();
+
     const missing = collect();
     missing.client.connect();
     await wait(50);
-    assertEqual(missing.seen, ['disconnected'], 'a missing socket reports a disconnect');
+    assertEqual(missing.seen, ['not connected'], 'a missing socket reports a failure to connect');
 
     const service = new Gio.SocketService();
     service.add_address(Gio.UnixSocketAddress.new(path),

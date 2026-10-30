@@ -256,7 +256,7 @@ The ring looks the same whether or not a button is held.
 - Its radius goes from 0 to the permanent ring's radius over `mouse.ripple.duration_ms`, at opacity `mouse.ripple.start_opacity`.
 - While its button is held, the ripple stays at that opacity and follows the pointer. This is the held state.
 - On release, it stops where the pointer is and its opacity goes to 0 over `mouse.ripple.duration_ms`. If it hasn't finished growing, it keeps growing while it fades. Both use ease-out easing by default.
-- Each button has its own colour, and all default to one value.
+- Each button has its own colour.
 - Ripples overlap independently. A new click does not cancel an earlier ripple, and each held button has its own.
 - No new ripple starts on release, and a button already held at switch-on gets none.
 
@@ -285,7 +285,7 @@ A press and release that both fall between two frames is missed. At 60 Hz this n
 - keymon is off after login. The extension is loaded but idle: no helper connection, no pointer tracking, no actors.
 - The panel icon and a global shortcut (`toggle_shortcut`) switch it on and off.
 - Switching off closes the helper connection, stops pointer tracking, and removes all actors immediately.
-- The panel icon shows three states: off, on, and error.
+- Clicking the panel icon toggles keymon, with no menu. The icon is always a keyboard, and its colour shows three states: grey for off, yellow for on, and red for error.
 
 ### Lock screen
 
@@ -345,8 +345,8 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `mouse.ring.stroke_color` | `"#ffcc00"` | Ring colour |
 | `mouse.ring.fill_color` | `"rgba(0,0,0,0)"` | Ring fill |
 | `mouse.colors.left` | `"#ffcc00"` | Left button ripple colour |
-| `mouse.colors.middle` | `"#ffcc00"` | Middle button ripple colour |
-| `mouse.colors.right` | `"#ffcc00"` | Right button ripple colour |
+| `mouse.colors.middle` | `"#00ccff"` | Middle button ripple colour |
+| `mouse.colors.right` | `"#cc00ff"` | Right button ripple colour |
 | `mouse.ripple.duration_ms` | `300` | Time a ripple takes to grow, and to fade after release |
 | `mouse.ripple.start_opacity` | `0.8` | Opacity of a ripple until its button is released |
 | `mouse.ripple.easing` | `"ease-out"` | `linear`, `ease-in`, `ease-out`, or `ease-in-out` |
@@ -375,7 +375,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 
 If the extension path is already a symlink to this repo, as `dev/link-extension.sh` makes it, step 4 keeps the link and only compiles the schema. A symlink to anywhere else stops the installer before it changes anything.
 
-`uninstall.sh` reverses all of these steps. It leaves the config file in place.
+`uninstall.sh` reverses all of these steps, except that it leaves the config file and the `python3-evdev` package in place. It prints the command to remove the package, which may also serve something else. A symlink at the extension path is removed without touching what it points to, and a symlink to anywhere but this repo stops the script before it changes anything.
 
 ### Proposed repo layout
 

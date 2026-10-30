@@ -1,0 +1,59 @@
+{
+  "toggle_shortcut": "<Super><Alt>k",
+  "overlay": {
+    "monitor": "primary",
+    "origin_h": "center",
+    "origin_v": "bottom",
+    "anchor_h": "center",
+    "anchor_v": "bottom",
+    "offset_x": 0,
+    "offset_y": -80,
+    "row_spacing": 8
+  },
+  "box": {
+    "background": "rgba(0,0,0,0.75)",
+    "padding_h": 16,
+    "padding_v": 8,
+    "corner_radius": 12,
+    "fade_out_ms": 200,
+    "max_width": 800
+  },
+  "text": {
+    "color": "#ffffff",
+    "held_color": "#ffcc00",
+    "muted_color": "rgba(255,255,255,0.8)",
+    "size": 28,
+    "font": "sans",
+    "weight": "normal",
+    "line_height": 1.25
+  },
+  "keys": {
+    "run_visible_ms": 3000,
+    "run_gap_ms": 2000,
+    "repeat_delay_ms": null,
+    "repeat_interval_ms": null,
+    "shift_delay_ms": 200,
+    "max_runs": 5,
+    "stack_direction": "up",
+    "space_symbol": "␣",
+    "names": {}
+  },
+  "mouse": {
+    "ring": {
+      "radius": 28,
+      "stroke_width": 3,
+      "stroke_color": "#ffcc00",
+      "fill_color": "rgba(0,0,0,0)"
+    },
+    "colors": {
+      "left": "#ffcc00",
+      "middle": "#00ccff",
+      "right": "#cc00ff"
+    },
+    "ripple": {
+      "duration_ms": 300,
+      "start_opacity": 0.8,
+      "easing": "ease-out"
+    }
+  }
+}

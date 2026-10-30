@@ -21,8 +21,10 @@ function pangoColor(css) {
 }
 
 export class KeyOverlay {
-    constructor(config) {
+    // guard(callback) runs what this class starts by itself, outside render().
+    constructor(config, guard) {
         this._config = config;
+        this._guard = guard;
         this._stack = []; // Newest first: {id, row, size, fading}.
         this._colors = {
             held: pangoColor(config.text.held_color),
@@ -109,11 +111,11 @@ export class KeyOverlay {
             opacity: 0,
             duration,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => {
+            onComplete: () => this._guard(() => {
                 this._stack = this._stack.filter(other => other !== entry);
                 entry.row.destroy();
                 this.render(state);
-            },
+            }),
         });
         return true;
     }

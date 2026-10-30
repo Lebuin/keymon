@@ -6,9 +6,27 @@ import GLib from 'gi://GLib';
 
 export const SOCKET_PATH = '/run/keymon/keys.sock';
 
+// The wait before each reconnect: 1, 2, 4, up to 30 s.
+export class Backoff {
+    constructor() {
+        this.reset();
+    }
+
+    reset() {
+        this._delay = 1000;
+    }
+
+    next() {
+        const delay = this._delay;
+        this._delay = Math.min(delay * 2, 30000);
+        return delay;
+    }
+}
+
 export class KeyClient {
     // onKey(code, down) runs per key event, onConnected() once connected, and
-    // onDisconnected(message) when the connection fails or ends. Neither runs
+    // onDisconnected(message, wasConnected) when the connection fails or ends.
+    // wasConnected is false if it never got as far as connecting. None of them run
     // after close().
     constructor(path, {onKey, onConnected, onDisconnected}) {
         this._path = path;
@@ -33,7 +51,7 @@ export class KeyClient {
                     }
                     this._connection = connection;
                 } catch (e) {
-                    this._lost(cancellable, e.message);
+                    this._lost(cancellable, e.message, false);
                     return;
                 }
                 this._onConnected();
@@ -62,12 +80,12 @@ export class KeyClient {
             try {
                 const [line] = source.read_line_finish_utf8(result);
                 if (line === null) {
-                    this._lost(cancellable, 'the helper closed the connection');
+                    this._lost(cancellable, 'the helper closed the connection', true);
                     return;
                 }
                 event = JSON.parse(line);
             } catch (e) {
-                this._lost(cancellable, e.message);
+                this._lost(cancellable, e.message, true);
                 return;
             }
             if (cancellable.is_cancelled())
@@ -79,10 +97,10 @@ export class KeyClient {
         });
     }
 
-    _lost(cancellable, message) {
+    _lost(cancellable, message, wasConnected) {
         if (cancellable.is_cancelled())
             return;
         this.close();
-        this._onDisconnected(message);
+        this._onDisconnected(message, wasConnected);
     }
 }

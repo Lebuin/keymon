@@ -18,8 +18,9 @@ const EASING = {
 };
 
 export class PointerDisplay {
-    // onPress runs once per frame in which a tracked button went down.
-    constructor(config, onPress) {
+    // onPress runs once per frame in which a tracked button went down, and
+    // guard(callback) runs each frame.
+    constructor(config, onPress, guard) {
         this._config = config;
         this._onPress = onPress;
         this._held = new Map(); // Button name to the ripple it holds up.
@@ -48,7 +49,7 @@ export class PointerDisplay {
             duration: 1000,
             repeat_count: -1,
         });
-        this._timeline.connect('new-frame', () => this._onFrame());
+        this._timeline.connect('new-frame', () => guard(() => this._onFrame()));
         this._timeline.start();
     }
 
