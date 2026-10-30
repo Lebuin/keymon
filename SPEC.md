@@ -145,7 +145,7 @@ A key is **chorded** when a hard modifier is physically held, or when a soft mod
 - A run stays visible for `keys.run_visible_ms`.
 - The timer restarts each time the run gains or loses a character.
 - The newest run ignores its timer while any of its keys is physically held. The timer starts when the last one is released. This keeps `Ctrl` visible through a long Ctrl+click.
-- A run replaced as newest by another run starts its timer at that moment, even if its keys are still held.
+- A run replaced as newest by another run starts its timer at that moment, even if its keys are still held. A timer that is already running keeps going and doesn't restart.
 - A quick tap gets the same full visible time.
 
 ### Held key colour
@@ -219,8 +219,8 @@ The modifier's release doesn't change this. Shift down, Shift up, then `1` withi
 
 Once it has resolved, for as long as it stays held:
 
-- **After absorption:** further printable keys keep joining the text run, however slowly they are typed. A special key or mouse press starts a modifier run.
-- **After a standalone run:** the first printable key replaces the `Shift` row in place with a new text run, such as `!`. It doesn't merge into any earlier run, and further printable keys join this new run. A special key is added to the `Shift` row as in "Modifier runs".
+- **After absorption:** further printable keys stay in text under the usual rules, however slowly they are typed, so `keys.run_gap_ms` can still start a new text run, but no `Shift` row appears. A special key or mouse press starts a modifier run.
+- **After a standalone run:** the first printable key replaces the `Shift` row in place with a new text run, such as `!`. It doesn't merge into any earlier run, and further printable keys join this new run. A special key is added to the `Shift` row as in "Modifier runs". A row made by Shift+click behaves the same way.
 - **After the modifier is released:** a standalone run simply stays until its timer ends. The next printable key starts a new text run on a new row.
 
 A Shift or AltGr press while a hard modifier is held skips all of this and joins the run immediately. Ctrl+Shift+T shows `Ctrl` `Shift` `T`.
