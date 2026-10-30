@@ -285,7 +285,7 @@ A press and release that both fall between two frames is missed. At 60 Hz this n
 - keymon is off after login. The extension is loaded but idle: no helper connection, no pointer tracking, no actors.
 - The panel icon and a global shortcut (`toggle_shortcut`) switch it on and off.
 - Switching off closes the helper connection, stops pointer tracking, and removes all actors immediately.
-- Clicking the panel icon toggles keymon, with no menu. The icon is always a keyboard, and its colour shows three states: grey for off, yellow for on, and red for error.
+- Clicking the panel icon toggles keymon, with no menu. The icon shows three states: a plain keyboard for off, a white keyboard on an amber pill for on, and a white warning triangle on a red pill for error. The pills use the theme's styles for GNOME's screen sharing and recording indicators, and the icon takes the same panel width in every state.
 
 ### Lock screen
 
