@@ -305,7 +305,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 - Missing keys take their default, and unknown keys are ignored.
 - The file is watched and changes apply live, without a restart.
 - Invalid JSON or an invalid value: the last valid config stays active for the whole file, and a GNOME notification names the problem.
-- Colours are CSS strings such as `#ffffff` or `rgba(0,0,0,0.75)`.
+- Colours are CSS strings such as `#ffffff`, `rgba(0,0,0,0.75)`, `hsl(45,100%,50%)`, or `hsla(45,100%,50%,0.5)`. Saturation and lightness need their `%` signs.
 
 | Key | Default | Meaning |
 |---|---|---|

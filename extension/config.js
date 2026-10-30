@@ -178,9 +178,25 @@ export function validateConfig(file, isColor) {
     return null;
 }
 
+// Gives every colour the form colorToCss makes of it, since St's CSS parser takes
+// fewer forms than the parser that validated them.
+function normalizeColors(config, colorToCss) {
+    for (const [path, rule] of Object.entries(RULES)) {
+        if (rule !== COLOR && rule !== COLOR_OR_NULL)
+            continue;
+        const names = path.split('.');
+        const name = names.pop();
+        const section = names.reduce((part, key) => part[key], config);
+        if (section[name] !== null)
+            section[name] = colorToCss(section[name]);
+    }
+    return config;
+}
+
 // Returns {config} for a usable file, including a missing one, and otherwise
-// {error} with a message naming the problem.
-export function readConfig(path, isColor) {
+// {error} with a message naming the problem. colorToCss(css) returns a colour in the
+// form St can read, or null if it isn't a colour.
+export function readConfig(path, colorToCss) {
     let file = {};
     try {
         const [, bytes] = Gio.File.new_for_path(path).load_contents(null);
@@ -189,8 +205,8 @@ export function readConfig(path, isColor) {
         if (!e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
             return {error: e.message};
     }
-    const error = validateConfig(file, isColor);
-    return error ? {error} : {config: mergeConfig(file)};
+    const error = validateConfig(file, css => colorToCss(css) !== null);
+    return error ? {error} : {config: normalizeColors(mergeConfig(file), colorToCss)};
 }
 
 // Runs onChange once a change to the file has settled, including the file being

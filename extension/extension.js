@@ -35,8 +35,10 @@ function now() {
     return Math.floor(GLib.get_monotonic_time() / 1000);
 }
 
-function isColor(css) {
-    return Clutter.Color.from_string(css)[0];
+// Clutter reads forms such as hsl() that St's CSS parser doesn't, so St gets rgba().
+function colorToCss(css) {
+    const [ok, color] = Clutter.Color.from_string(css);
+    return ok ? `rgba(${color.red},${color.green},${color.blue},${color.alpha / 255})` : null;
 }
 
 export default class KeymonExtension extends Extension {
@@ -137,7 +139,7 @@ export default class KeymonExtension extends Extension {
     }
 
     _reloadConfig() {
-        const {config, error} = readConfig(CONFIG_PATH, isColor);
+        const {config, error} = readConfig(CONFIG_PATH, colorToCss);
         if (error) {
             log(`config not applied: ${error}`);
             Main.notify('keymon', `Config not applied, keeping the last valid one: ${error}`);

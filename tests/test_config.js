@@ -28,6 +28,7 @@ function wait(ms) {
 }
 
 const isColor = css => /^(#[0-9a-f]{6}|rgba\(.*\))$/.test(css);
+const colorToCss = css => isColor(css) ? css : null;
 const problem = file => validateConfig(file, isColor);
 
 function testValidation() {
@@ -51,23 +52,28 @@ function testValidation() {
 }
 
 function testExample() {
-    const example = readConfig(GLib.build_filenamev([GLib.get_current_dir(), 'config.example.json']), isColor);
+    const example = readConfig(GLib.build_filenamev([GLib.get_current_dir(), 'config.example.json']), colorToCss);
     assertEqual(example.config, mergeConfig({}), 'config.example.json holds exactly the defaults');
 }
 
 function testReading() {
-    assertEqual(readConfig(path, isColor), {config: mergeConfig({})}, 'a missing file gives the defaults');
+    assertEqual(readConfig(path, colorToCss), {config: mergeConfig({})}, 'a missing file gives the defaults');
 
     GLib.file_set_contents(path, '{"box": {"padding_h": 3}}');
-    const {config} = readConfig(path, isColor);
+    const {config} = readConfig(path, colorToCss);
     assertEqual([config.box.padding_h, config.box.padding_v], [3, 8], 'missing keys take their default');
 
+    GLib.file_set_contents(path, '{"text": {"color": "#111111", "held_color": null}}');
+    const converted = readConfig(path, css => `converted ${css}`).config;
+    assertEqual([converted.text.color, converted.text.held_color, converted.mouse.colors.left],
+        ['converted #111111', null, 'converted #ffcc00'], 'colours are converted, and null stays');
+
     GLib.file_set_contents(path, '{"box": ');
-    const broken = readConfig(path, isColor);
+    const broken = readConfig(path, colorToCss);
     assertEqual([broken.config, typeof broken.error], [undefined, 'string'], 'invalid JSON gives an error');
 
     GLib.file_set_contents(path, '{"box": {"padding_h": -1}}');
-    assertEqual(readConfig(path, isColor).error, 'box.padding_h must be a number of 0 or more, not -1', 'an invalid value gives an error');
+    assertEqual(readConfig(path, colorToCss).error, 'box.padding_h must be a number of 0 or more, not -1', 'an invalid value gives an error');
     GLib.unlink(path);
 }
 
