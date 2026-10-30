@@ -39,7 +39,41 @@ const DEFAULTS = {
         ...DEFAULT_KEYS,
         stack_direction: 'up',
     },
+    mouse: {
+        ring: {
+            radius: 28,
+            stroke_width: 3,
+            stroke_color: '#ffcc00',
+            fill_color: 'rgba(0,0,0,0)',
+        },
+        colors: {
+            left: '#ffcc00',
+            middle: '#00ccff',
+            right: '#cc00ff',
+        },
+        ripple: {
+            duration_ms: 300,
+            start_opacity: 0.8,
+            easing: 'ease-out',
+        },
+    },
 };
+
+// Missing keys take their default, at every level of the file.
+export function mergeConfig(file) {
+    return {
+        toggle_shortcut: file.toggle_shortcut ?? DEFAULTS.toggle_shortcut,
+        overlay: {...DEFAULTS.overlay, ...file.overlay},
+        box: {...DEFAULTS.box, ...file.box},
+        text: {...DEFAULTS.text, ...file.text},
+        keys: {...DEFAULTS.keys, ...file.keys},
+        mouse: {
+            ring: {...DEFAULTS.mouse.ring, ...file.mouse?.ring},
+            colors: {...DEFAULTS.mouse.colors, ...file.mouse?.colors},
+            ripple: {...DEFAULTS.mouse.ripple, ...file.mouse?.ripple},
+        },
+    };
+}
 
 export function readConfig() {
     const path = GLib.build_filenamev([GLib.get_user_config_dir(), 'keymon', 'config.json']);
@@ -51,11 +85,5 @@ export function readConfig() {
         if (!e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
             console.log(`keymon: config not used: ${e.message}`);
     }
-    return {
-        toggle_shortcut: file.toggle_shortcut ?? DEFAULTS.toggle_shortcut,
-        overlay: {...DEFAULTS.overlay, ...file.overlay},
-        box: {...DEFAULTS.box, ...file.box},
-        text: {...DEFAULTS.text, ...file.text},
-        keys: {...DEFAULTS.keys, ...file.keys},
-    };
+    return mergeConfig(file);
 }

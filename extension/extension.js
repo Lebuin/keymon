@@ -1,12 +1,11 @@
-// Stage 4: a click-through ring, and the key overlay driven by the display state
-// machine. The toggle shortcut switches both on and off.
+// Stage 5: the pointer ring and click ripples, and the key overlay driven by the
+// display state machine. The toggle shortcut switches them on and off.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
-import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -16,16 +15,13 @@ import {readConfig} from './config.js';
 import {KeyClient, SOCKET_PATH} from './keyclient.js';
 import {KeyResolver, loadKeymap} from './keymap.js';
 import {KeyOverlay} from './overlay.js';
+import {PointerDisplay} from './pointer.js';
 import {DisplayState} from './state.js';
 
-const RING_RADIUS = 28;
 const FALLBACK_LAYOUT = 'us';
 // Applications repeat a little slower than GNOME's setting asks for. Measured with
 // dev/measure-repeat.py: 28.43 ms at a setting of 27 ms.
 const REPEAT_LAG_MS = 1.2;
-const BUTTONS_MASK = Clutter.ModifierType.BUTTON1_MASK |
-    Clutter.ModifierType.BUTTON2_MASK |
-    Clutter.ModifierType.BUTTON3_MASK;
 
 function log(message) {
     console.log(`keymon: ${message}`);
@@ -90,23 +86,13 @@ export default class KeymonExtension extends Extension {
         this._resolver = new KeyResolver();
         this._keymap = Clutter.get_default_backend().get_default_seat().get_keymap();
 
-        this._ring = new St.Widget({
-            reactive: false,
-            can_focus: false,
-            track_hover: false,
-            width: RING_RADIUS * 2,
-            height: RING_RADIUS * 2,
-            style: `border: 3px solid #ffcc00; border-radius: ${RING_RADIUS}px;` +
-                'background-color: rgba(0,0,0,0);',
+        this._pointer = new PointerDisplay(config.mouse, () => {
+            this._state.mouseDown();
+            this._update();
         });
-        Main.layoutManager.addTopChrome(this._ring, {affectsInputRegion: false});
-        this._lastX = this._lastY = null;
-        this._lastButtons = global.get_pointer()[2] & BUTTONS_MASK;
-        this._onFrame();
 
         // Direct scanout of a fullscreen window would bypass our actors.
         Meta.disable_unredirect_for_display(global.display);
-        this._startTracking();
 
         const sources = getInputSourceManager();
         this._sourceChangedId = sources.connect(
@@ -143,12 +129,10 @@ export default class KeymonExtension extends Extension {
             this._timeoutId = 0;
         }
 
-        this._stopTracking();
         Meta.enable_unredirect_for_display(global.display);
 
-        Main.layoutManager.removeChrome(this._ring);
-        this._ring.destroy();
-        this._ring = null;
+        this._pointer.destroy();
+        this._pointer = null;
 
         this._overlay.destroy();
         this._overlay = null;
@@ -247,37 +231,5 @@ export default class KeymonExtension extends Extension {
                 this._update();
                 return GLib.SOURCE_REMOVE;
             });
-    }
-
-    _startTracking() {
-        this._timeline = new Clutter.Timeline({
-            actor: this._ring,
-            duration: 1000,
-            repeat_count: -1,
-        });
-        this._timeline.connect('new-frame', () => this._onFrame());
-        this._timeline.start();
-    }
-
-    _stopTracking() {
-        this._timeline?.stop();
-        this._timeline = null;
-    }
-
-    _onFrame() {
-        const [x, y, modifiers] = global.get_pointer();
-        if (x !== this._lastX || y !== this._lastY) {
-            this._lastX = x;
-            this._lastY = y;
-            this._ring.set_position(x - RING_RADIUS, y - RING_RADIUS);
-        }
-
-        const buttons = modifiers & BUTTONS_MASK;
-        const pressed = buttons & ~this._lastButtons;
-        this._lastButtons = buttons;
-        if (pressed !== 0) {
-            this._state.mouseDown();
-            this._update();
-        }
     }
 }

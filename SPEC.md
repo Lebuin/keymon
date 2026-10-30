@@ -248,17 +248,17 @@ A Shift or AltGr press while a hard modifier is held skips all of this and joins
 - It moves across both monitors, and is hidden only when keymon is off.
 - It stays visible when an app hides the cursor.
 
-### Held state
-
-While any tracked button is held, the ring uses `mouse.held_stroke_width` and the colour of the most recently pressed held button. It reverts instantly on release.
+The ring looks the same whether or not a button is held.
 
 ### Click ripple
 
-- On every press transition, a ripple starts at the pointer's position at that moment and stays there if the pointer moves.
-- Its radius goes from 0 to the permanent ring's radius while its opacity goes from `mouse.ripple.start_opacity` to 0, over `mouse.ripple.duration_ms`, with ease-out easing by default.
+- On every press transition, a ripple starts at the pointer's position: a filled disc, drawn under the ring.
+- Its radius goes from 0 to the permanent ring's radius over `mouse.ripple.duration_ms`, at opacity `mouse.ripple.start_opacity`.
+- While its button is held, the ripple stays at that opacity and follows the pointer. This is the held state.
+- On release, it stops where the pointer is and its opacity goes to 0 over `mouse.ripple.duration_ms`. If it hasn't finished growing, it keeps growing while it fades. Both use ease-out easing by default.
 - Each button has its own colour, and all default to one value.
-- Ripples overlap independently. A new click does not cancel an earlier ripple.
-- There is no ripple on release.
+- Ripples overlap independently. A new click does not cancel an earlier ripple, and each held button has its own.
+- No new ripple starts on release, and a button already held at switch-on gets none.
 
 A press and release that both fall between two frames is missed. At 60 Hz this needs a click shorter than about 17 ms, which is accepted.
 
@@ -342,14 +342,13 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `keys.names` | `{}` | Keysym name to label overrides |
 | `mouse.ring.radius` | `28` | Permanent ring and final ripple radius in px |
 | `mouse.ring.stroke_width` | `3` | Ring stroke in px |
-| `mouse.ring.stroke_color` | `"#ffcc00"` | Ring colour with no button held |
+| `mouse.ring.stroke_color` | `"#ffcc00"` | Ring colour |
 | `mouse.ring.fill_color` | `"rgba(0,0,0,0)"` | Ring fill |
-| `mouse.held_stroke_width` | `5` | Ring stroke while a button is held |
-| `mouse.colors.left` | `"#ffcc00"` | Left button ripple and held colour |
-| `mouse.colors.middle` | `"#ffcc00"` | Middle button ripple and held colour |
-| `mouse.colors.right` | `"#ffcc00"` | Right button ripple and held colour |
-| `mouse.ripple.duration_ms` | `300` | Ripple duration |
-| `mouse.ripple.start_opacity` | `0.8` | Opacity at the start of a ripple |
+| `mouse.colors.left` | `"#ffcc00"` | Left button ripple colour |
+| `mouse.colors.middle` | `"#ffcc00"` | Middle button ripple colour |
+| `mouse.colors.right` | `"#ffcc00"` | Right button ripple colour |
+| `mouse.ripple.duration_ms` | `300` | Time a ripple takes to grow, and to fade after release |
+| `mouse.ripple.start_opacity` | `0.8` | Opacity of a ripple until its button is released |
 | `mouse.ripple.easing` | `"ease-out"` | `linear`, `ease-in`, `ease-out`, or `ease-in-out` |
 
 ## 12. Error handling
@@ -408,9 +407,9 @@ tests/
 **Mouse**
 
 10. The ring follows the pointer across both monitors, with no visible offset at scale 1.0.
-11. Every left, middle, and right press gives one ripple from radius 0 to ring radius, fading out, in that button's colour.
+11. Every left, middle, and right press gives one ripple from radius 0 to ring radius, fading out after release, in that button's colour.
 12. Rapid clicks produce overlapping ripples.
-13. The ring changes while dragging and reverts on release.
+13. While dragging, the ring doesn't change and the ripple stays visible and follows the pointer, until it fades on release.
 
 **System**
 
