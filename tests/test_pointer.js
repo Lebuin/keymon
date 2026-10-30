@@ -20,8 +20,8 @@ function eq(actual, expected, what) {
 }
 
 const LEFT = 1 << 8;
-const MIDDLE = 1 << 9;
-const RIGHT = 1 << 10;
+const MIDDLE = 1 << 10;
+const RIGHT = 1 << 9;
 const SHIFT = 1 << 0;
 const BACK = 1 << 11; // Clutter's BUTTON4_MASK.
 const NOTHING = {pressed: [], released: []};

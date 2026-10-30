@@ -1,12 +1,14 @@
 // Turns the button bits of a pointer state into press and release transitions. It
 // has no Shell imports, so that it can be tested under plain gjs.
 
-// Clutter.ModifierType.BUTTON1_MASK to BUTTON3_MASK. Back, forward and other side
+// Clutter.ModifierType.BUTTON1_MASK to BUTTON3_MASK. On the target machine the
+// pointer state reports a right press in BUTTON2_MASK and a middle press in
+// BUTTON3_MASK, the reverse of Clutter's button numbers. Back, forward and other side
 // buttons have no bit here, so they are ignored.
 const BUTTONS = [
     {name: 'left', mask: 1 << 8},
-    {name: 'middle', mask: 1 << 9},
-    {name: 'right', mask: 1 << 10},
+    {name: 'middle', mask: 1 << 10},
+    {name: 'right', mask: 1 << 9},
 ];
 
 export class ButtonTracker {
