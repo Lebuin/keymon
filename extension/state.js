@@ -169,23 +169,15 @@ export class DisplayState {
         return true;
     }
 
-    // Newest first. A text run is {kind: 'text', truncated, items: [{text, held}]},
-    // and a modifier run is {kind: 'modifier', boxes: [{label, held}]}.
+    // Newest first. A text run is {kind: 'text', items: [{text, held}]}, and a
+    // modifier run is {kind: 'modifier', boxes: [{label, held}]}.
     runs() {
         return this._runs.map(run => (run.items ? this._textView(run) : this._modifierView(run)));
     }
 
     _textView(run) {
-        const items = [];
-        let chars = 0;
-        for (const item of [...run.items].reverse()) {
-            // A token is never cut, unless it is all there is to show.
-            chars += charCount(item.text);
-            if (chars > this._keys.run_max_chars && items.length > 0)
-                break;
-            items.unshift({text: item.text, held: this._isHeld(item.press)});
-        }
-        return {kind: 'text', truncated: items.length < run.items.length, items};
+        const items = run.items.map(item => ({text: item.text, held: this._isHeld(item.press)}));
+        return {kind: 'text', items};
     }
 
     _modifierView(run) {
@@ -374,11 +366,19 @@ export class DisplayState {
     }
 
     _appendToText(item, press) {
-        const run = this._currentTextRun() ?? this._addRun({items: []});
+        // A token is never split, so one too long for the limit gets its own run.
+        let run = this._currentTextRun();
+        if (run && this._textLength(run) + charCount(item.text) > this._keys.run_max_chars)
+            run = null;
+        run ??= this._addRun({items: []});
         this._textRun = run;
         run.items.push(item);
         run.timerStart = run.lastActivity = this._now();
         press.run = run;
+    }
+
+    _textLength(run) {
+        return run.items.reduce((length, item) => length + charCount(item.text), 0);
     }
 
     _runHeld(run) {

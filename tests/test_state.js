@@ -86,7 +86,7 @@ function render(run, marks = false) {
     const mark = part => (marks && part.held ? `*${part.label ?? part.text}*` : part.label ?? part.text);
     if (run.kind === 'modifier')
         return run.boxes.map(mark).join(' ');
-    return (run.truncated ? '…' : '') + run.items.map(mark).join('');
+    return run.items.map(mark).join('');
 }
 
 function test(name, body) {
@@ -321,12 +321,31 @@ test('labels stay locked at press, and release matches by code', () => {
     eq(d.shownHeld(), ['*Shift*', '1'], 'released by code');
 });
 
-test('text is cut to the last run_max_chars, with a leading ellipsis flag', () => {
+test('a full run is followed by a new one', () => {
     const d = setup({run_max_chars: 3});
     d.tap(K.a, K.s, K.c);
     eq(d.shown(), ['asc'], 'exactly at the limit');
     d.tap(K.v);
-    eq(d.shown(), ['…scv'], 'cut');
+    eq(d.shown(), ['v', 'asc'], 'the next character starts a new row');
+    d.tap(K.m);
+    eq(d.shown(), ['vm', 'asc'], 'further characters join the new row');
+});
+
+test('long typing stops at max_runs', () => {
+    const d = setup({run_max_chars: 1, max_runs: 2});
+    d.tap(K.a, K.s, K.c);
+    eq(d.shown(), ['c', 's'], 'the oldest row goes');
+});
+
+test('full rows expire on their own timers', () => {
+    const d = setup({run_max_chars: 1});
+    d.tap(K.a);
+    d.wait(1000);
+    d.tap(K.s);
+    d.wait(2000);
+    eq(d.shown(), ['s'], 'the first row is gone');
+    d.wait(1000);
+    eq(d.shown(), [], 'the second row follows');
 });
 
 test('a token counts by its length and is never split', () => {
@@ -334,15 +353,29 @@ test('a token counts by its length and is never split', () => {
     d.tap(K.a, K.s, K.esc);
     eq(d.shown(), ['as‹Esc›'], 'fits exactly');
     d.tap(K.esc);
-    eq(d.shown(), ['…‹Esc›'], 'an earlier token drops whole');
+    eq(d.shown(), ['‹Esc›', 'as‹Esc›'], 'the next token starts a new row');
 });
 
-test('erasing brings cut text back', () => {
+test('a token longer than the limit gets its own row', () => {
+    const d = setup({run_max_chars: 3});
+    d.tap(K.esc);
+    eq(d.shown(), ['‹Esc›'], 'shown whole');
+    d.tap(K.a);
+    eq(d.shown(), ['a', '‹Esc›'], 'the next character starts a new row');
+});
+
+test('Enter on a full run goes on a new row', () => {
     const d = setup({run_max_chars: 2});
-    d.tap(K.a, K.s, K.c);
-    eq(d.shown(), ['…sc'], 'cut');
+    d.tap(K.a, K.s, K.enter, K.c);
+    eq(d.shown(), ['c', '⏎', 'as'], 'three rows');
+});
+
+test('Backspace does not reach back into a full run', () => {
+    const d = setup({run_max_chars: 2});
+    d.tap(K.a, K.s, K.c, K.backspace);
+    eq(d.shown(), ['as'], 'the new row is gone');
     d.tap(K.backspace);
-    eq(d.shown(), ['as'], 'whole again');
+    eq(d.shown(), ['⌫', 'as'], 'the full run stays as it was');
 });
 
 test('a new run starts after the gap since a press or release', () => {

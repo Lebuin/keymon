@@ -170,11 +170,11 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 - Text comes from each key's locked label. Space appears as `keys.space_symbol` so that trailing spaces stay visible.
 - Auto-repeat is ignored. Holding `a` adds one `a`, and holding Backspace erases one character.
 - Keys held at the same time merge. Holding A and S shows one box, `as`.
-- Only the last `keys.run_max_chars` characters are shown, with a leading `…` when text has been cut.
 - A new text run starts when any of these is true:
   - There is no current text run, for example because the last one expired or a modifier run came after it.
   - No text run key has been pressed or released for `keys.run_gap_ms`.
   - The previous key in the run was Enter.
+  - The new character or token would take the run past `keys.run_max_chars`. A token counts by its visible length and is never split, so one longer than the limit gets its own run.
 - Mouse activity doesn't affect text runs.
 
 ### Special keys in a text run
@@ -185,7 +185,7 @@ A special key that isn't chorded goes into the text run as a token. It counts as
 - **Enter:** it joins the current run and ends it. Typing `hello`, Enter, `world` shows `hello⏎` and `world` on two rows. An Enter with no current run shows a run containing just `⏎`.
 - **Backspace:** if the last item in the current run is a character, it erases that character, including a space or dead key.
   - If the last item is a token, or there is no current run, Backspace is shown as a `⌫` token. In `abc←`, it gives `abc←⌫`.
-  - If erasing leaves a run empty, that run is removed, and the next key starts a new run.
+  - If erasing leaves a run empty, that run is removed, and the next key starts a new run. Backspace never reaches back into an earlier row.
   - A Backspace after the `keys.run_gap_ms` gap starts a new run showing `⌫`, so it doesn't erase from the old run.
   - Backspace only edits what keymon displays, and may not match the text in the application.
 
@@ -322,7 +322,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `keys.run_visible_ms` | `3000` | How long a run stays visible |
 | `keys.run_gap_ms` | `2000` | Time without typing before a new text run starts |
 | `keys.shift_delay_ms` | `200` | Time for a key to follow Shift or AltGr before it counts as a modifier |
-| `keys.run_max_chars` | `30` | Visible characters in a text run |
+| `keys.run_max_chars` | `30` | Characters in a text run before a new one starts |
 | `keys.max_runs` | `5` | Maximum rows in the stack |
 | `keys.stack_direction` | `"up"` | Direction older runs move: `up` or `down` |
 | `keys.space_symbol` | `"␣"` | Space inside a text run |
