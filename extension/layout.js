@@ -69,30 +69,24 @@ export function restingItems(items) {
     return items.map(item => ({...item, held: false}));
 }
 
-// A box's height from its measured height: whole lines and padding. Symbols from other
-// fonts or at other sizes can make a line a little taller, which this leaves out.
-export function boxHeight(measured, lineHeight, padding) {
-    const lines = Math.max(Math.round((measured - 2 * padding) / lineHeight), 1);
-    return Math.ceil(lines * lineHeight) + 2 * padding;
+// A box's height, which is always one line and padding. Symbols from other fonts or at
+// other sizes can make the line a little taller, which this leaves out.
+export function boxHeight(lineHeight, padding) {
+    return Math.ceil(lineHeight) + 2 * padding;
 }
 
 // Pango markup for a box's items. colors holds Pango colours for held and muted
 // items, and either can be null to leave those in the box's normal colour. Clutter
 // ignores a colour that starts at the first byte of the text, so a word joiner goes
-// in front. A zero-width space would let a long word wrap past an empty first line.
-// When a box wraps, word joiners keep each item whole, zero-width
-// spaces allow a break after breakAfter items, and no hyphen appears at a break.
-// lineHeight is in px. A factor would scale the tallest font on the line, so a symbol
-// from a taller fallback font would make the box bigger.
+// in front. lineHeight is in px. A factor would scale the tallest font on the line, so
+// a symbol from a taller fallback font would make the box bigger.
 export function textMarkup(items, colors, textSize, lineHeight) {
-    const content = items.map(({text, held, muted, breakAfter}) => {
-        const whole = [...text].join('\u2060');
+    const content = items.map(({text, held, muted}) => {
         const escaped = text in OVERSIZED_SYMBOLS
             ? `<span size="${Math.round(textSize * OVERSIZED_SYMBOLS[text] * PANGO_UNITS_PER_PX)}">${text}</span>`
-            : GLib.markup_escape_text(whole, -1);
+            : GLib.markup_escape_text(text, -1);
         const color = (held && colors.held) || (muted && colors.muted);
-        const span = color ? `<span foreground="${color}">${escaped}</span>` : escaped;
-        return breakAfter ? `${span}\u200b` : span;
+        return color ? `<span foreground="${color}">${escaped}</span>` : escaped;
     }).join('');
-    return `<span insert_hyphens="false" line_height="${Math.round(lineHeight * PANGO_UNITS_PER_ABSOLUTE_PX)}">\u2060${content}</span>`;
+    return `<span line_height="${Math.round(lineHeight * PANGO_UNITS_PER_ABSOLUTE_PX)}">\u2060${content}</span>`;
 }

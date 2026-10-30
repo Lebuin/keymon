@@ -119,24 +119,18 @@ function testMarkup() {
         {text: '&', held: false, muted: true},
         {text: '⏎', held: true, muted: true},
     ];
-    eq(boxHeight(37, 26.25, 5), 37, 'a plain line keeps its height');
-    eq(boxHeight(39, 26.25, 5), 37, 'a taller symbol does not add height');
-    eq(boxHeight(63, 26.25, 5), 63, 'two lines are two line heights');
-    eq(boxHeight(10, 26.25, 5), 37, 'there is always at least one line');
+    eq(boxHeight(26.25, 5), 37, 'a box is one line and its padding');
     eq(restingItems(items).map(item => item.held), [false, false, false, false], 'nothing is held at rest');
     eq(restingItems(items).map(item => item.text), items.map(item => item.text), 'and the text stays');
-    const wrapped = content => `<span insert_hyphens="false" line_height="30720">\u2060${content}</span>`;
+    const line = content => `<span line_height="30720">\u2060${content}</span>`;
     eq(textMarkup(items, {held: '#ff0000ff', muted: '#00ff00ff'}, 28, 30),
-        wrapped('a<span foreground="#ff0000ff">&lt;</span><span foreground="#00ff00ff">&amp;</span>' +
+        line('a<span foreground="#ff0000ff">&lt;</span><span foreground="#00ff00ff">&amp;</span>' +
         '<span foreground="#ff0000ff">⏎</span>'), 'held wins over muted, and all are escaped');
-    eq(textMarkup(items, {held: null, muted: null}, 28, 30), wrapped('a&lt;&amp;⏎'), 'no colours');
+    eq(textMarkup(items, {held: null, muted: null}, 28, 30), line('a&lt;&amp;⏎'), 'no colours');
     eq(textMarkup(items, {held: null, muted: '#00ff00ff'}, 28, 30).includes('<span foreground="#00ff00ff">⏎'), true,
         'a held key uses the muted colour with no held colour');
-    eq(textMarkup([{text: '‹F5›'}, {text: '␣', breakAfter: true}], {held: null, muted: null}, 28, 30),
-        wrapped('‹\u2060F\u20605\u2060›␣\u200b'), 'tokens stay whole, and a space allows a break');
-
     eq(textMarkup([{text: '⌫'}], {held: null, muted: null}, 28, 30),
-        wrapped('<span size="15053">⌫</span>'), 'the Backspace symbol is scaled down');
+        line('<span size="15053">⌫</span>'), 'the Backspace symbol is scaled down');
 
     const parts = [{label: 'Ctrl', held: true}, {label: 'c', held: false}];
     eq(runItems({kind: 'modifier', parts}),

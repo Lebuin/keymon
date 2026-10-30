@@ -159,7 +159,7 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 - In a modifier run, each part is coloured separately, and the `+` keeps `text.color`.
 - In a text run, only the characters or tokens whose keys are held are coloured, and this takes priority over `text.muted_color`. The box needs per-character styling, and text must be escaped if this uses Pango markup.
 - The colour reverts as soon as the key is released, including for left and right variants once neither is held.
-- A box is measured without held colours, so that they never change its size. Its height depends only on its number of lines, so that a symbol from another font or at another size doesn't change it.
+- A box is measured without held colours, so that they never change its size. Its height is always one line, so that a symbol from another font or at another size doesn't change it.
 
 ### Stack
 
@@ -169,7 +169,7 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 - A new row also zooms in from `box.enter_scale` over the same time. It zooms from the edge it aligns to (`overlay.anchor_h`, the middle of the row when `center`) and from its top edge when `keys.stack_direction` is `up`, or its bottom edge when `down`. Right aligned and `up` zooms from the top right corner.
 - A run added during that animation waits, and its row starts when the animation ends, one at a time in order. Its text stays up to date while it waits, and a run that ends or is removed before its turn never appears. `0` shows new rows at once.
 - When a run disappears, it fades out over `box.animation_ms`. It keeps its place in the stack while it fades, so new rows still push it along, and the runs further from the anchor slide over the gap when the fade ends.
-- Other movement is instant, such as a row growing sideways or wrapping onto another line. A row replaced in place (see "Shift and AltGr") doesn't fade.
+- Other movement is instant, such as a row growing sideways. A row replaced in place (see "Shift and AltGr") doesn't fade.
 - There are at most `keys.max_runs` rows. Past that limit, or when a row would leave the monitor, the oldest run is removed early, and fades out like any other. The newest run is never removed this way.
 
 ### Text runs
@@ -279,7 +279,7 @@ A press and release that both fall between two frames is missed. At 60 Hz this n
 - If the named monitor is absent, it falls back to primary. It repositions when monitors change.
 - `overlay.origin_h` and `overlay.origin_v` select a point on the monitor, and `overlay.offset_x` and `offset_y` move on from there. Positive offsets always move right and down.
 - `overlay.anchor_h` and `overlay.anchor_v` select the point on the newest row that goes at the result. `bottom` + `center` puts that row's bottom-centre there. To measure from the monitor's top-left corner, use origin `left` + `top`.
-- Each row grows away from the horizontal anchor: to the right when `left`, to the left when `right`, and in both directions when `center`. All rows share that alignment, and the lines of a wrapped box are aligned the same way.
+- Each row grows away from the horizontal anchor: to the right when `left`, to the left when `right`, and in both directions when `center`. All rows share that alignment.
 - Older rows extend in the `keys.stack_direction` direction, whatever the vertical anchor. With `top` + `up`, older rows would leave the monitor, so they are removed as described in §7.
 
 ## 10. Lifecycle and privacy
@@ -317,7 +317,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `overlay.monitor` | `"primary"` | `"primary"` or a connector name |
 | `overlay.origin_h` | `"center"` | Point on the monitor the offset starts from: `left`, `center`, or `right` |
 | `overlay.origin_v` | `"bottom"` | Same, vertically: `top`, `center`, or `bottom` |
-| `overlay.anchor_h` | `"center"` | Point on the newest row placed there, and the alignment of wrapped lines: `left`, `center`, or `right` |
+| `overlay.anchor_h` | `"center"` | Point on the newest row placed there, which is also the alignment of the row: `left`, `center`, or `right` |
 | `overlay.anchor_v` | `"bottom"` | Same, vertically: `top`, `center`, or `bottom` |
 | `overlay.offset_x` | `0` | Horizontal shift in px |
 | `overlay.offset_y` | `-80` | Vertical shift in px |
@@ -329,13 +329,13 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `box.animation_ms` | `150` | Time a new box takes to fade, slide, and zoom in, the others to make room, and a removed box to fade out. `0` turns all of these off |
 | `box.enter_scale` | `0` | Size a new box zooms in from, as a fraction of its full size. `1` doesn't zoom |
 | `box.animate_first` | `false` | Whether a new box also animates when no other box is on screen |
-| `box.max_width` | `800` | Maximum box width in px, including padding. Wider content wraps onto more lines |
+| `box.max_width` | `800` | Maximum box width in px, including padding. A box is always one line, and wider content loses its start, with an ellipsis in its place, so the newest text stays visible |
 | `text.color` | `"#ffffff"` | Text colour |
 | `text.held_color` | `"#ffcc00"` | Optional text colour for keys currently held. `null` uses `text.color` |
 | `text.muted_color` | `"rgba(255,255,255,0.8)"` | Text colour for modifier runs, and for special keys and the space symbol in a text run. `null` uses `text.color` |
 | `text.size` | `28` | Text size in px |
 | `text.font` | `"sans"` | Font family |
-| `text.line_height` | `1.25` | Line height, as a multiple of the normal height. The space above the first line and below the last comes out of `box.padding_v`, so a box keeps its size unless the padding runs out. A symbol from a taller fallback font doesn't change it |
+| `text.line_height` | `1.25` | Line height, as a multiple of the normal height. The space above and below the line comes out of `box.padding_v`, so a box keeps its size unless the padding runs out. A symbol from a taller fallback font doesn't change it |
 | `text.weight` | `"normal"` | Font weight: `normal`, `bold`, or a number from `100` to `900` |
 | `keys.run_visible_ms` | `3000` | How long a run stays visible |
 | `keys.run_gap_ms` | `2000` | Time without typing before a new text run starts |

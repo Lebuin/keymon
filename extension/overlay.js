@@ -192,9 +192,8 @@ export class KeyOverlay {
             style: this._boxStyle,
         });
         row.clutter_text.set({
-            line_wrap: true,
-            line_wrap_mode: Pango.WrapMode.WORD_CHAR,
-            ellipsize: Pango.EllipsizeMode.NONE,
+            line_wrap: false,
+            ellipsize: Pango.EllipsizeMode.START,
         });
         this._root.add_child(row);
         const entry = {id: run.id, row, size: null, fading: false, targetY: null};
@@ -207,14 +206,14 @@ export class KeyOverlay {
         const items = runItems(run);
         const markup = shown => textMarkup(shown, this._colors, this._config.text.size, this._lineHeight);
 
-        // A row wider than the limit wraps, which makes it taller.
+        // A row wider than the limit loses its start, so the newest text stays visible.
         // Twice, because a change of text is first laid out with the attributes of the old
         // markup, and that layout stays cached: a newly added ⌫ would measure at full size.
         row.clutter_text.set_markup(markup(restingItems(items)));
         row.clutter_text.set_markup(markup(restingItems(items)));
         row.set_size(-1, -1);
         const width = Math.min(row.get_preferred_width(-1)[1], maxWidth);
-        const height = boxHeight(row.get_preferred_height(width)[1], this._lineHeight, this._paddingV);
+        const height = boxHeight(this._lineHeight, this._paddingV);
         row.set_size(width, height);
         entry.size = {width, height};
 

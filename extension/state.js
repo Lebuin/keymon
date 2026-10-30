@@ -176,7 +176,7 @@ export class DisplayState {
         return true;
     }
 
-    // Newest first. A text run is {id, kind: 'text', items: [{text, held, muted, breakAfter}]},
+    // Newest first. A text run is {id, kind: 'text', items: [{text, held, muted}]},
     // and a modifier run is {id, kind: 'modifier', parts: [{label, held}]}. A run
     // keeps its id while shown, and a row replaced in place passes its id on.
     // A modifier only counts as held in the newest run.
@@ -191,7 +191,6 @@ export class DisplayState {
             text: item.text,
             held: this._isHeld(item.press),
             muted: item.muted,
-            breakAfter: item.breakAfter,
         }));
         return {id: run.id, kind: 'text', items};
     }
@@ -335,7 +334,7 @@ export class DisplayState {
     _appendTyped(press) {
         const text = press.key.keysym === 'space' ? this._keys.space_symbol : press.key.text;
         const muted = press.key.keysym === 'space';
-        this._appendToText({text, token: false, muted, breakAfter: muted, press}, press);
+        this._appendToText({text, token: false, muted, press}, press);
     }
 
     _specialDown(press) {
