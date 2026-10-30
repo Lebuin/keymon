@@ -54,7 +54,8 @@ export class KeyOverlay {
         const line = probe.get_preferred_height(-1)[1] - 2 * paddingV;
         probe.destroy();
 
-        const extra = line * (this._config.text.line_height - 1) / 2;
+        this._lineHeight = line * this._config.text.line_height;
+        const extra = (this._lineHeight - line) / 2;
         const padding = Math.max(Math.round(paddingV - extra), 0);
         this._boxStyle += `padding: ${padding}px ${paddingH}px;`;
     }
@@ -142,8 +143,7 @@ export class KeyOverlay {
             line_wrap_mode: Pango.WrapMode.WORD_CHAR,
             ellipsize: Pango.EllipsizeMode.NONE,
         });
-        const {size, line_height: lineHeight} = this._config.text;
-        row.clutter_text.set_markup(textMarkup(runItems(run), this._colors, size, lineHeight));
+        row.clutter_text.set_markup(textMarkup(runItems(run), this._colors, this._config.text.size, this._lineHeight));
         this._root.add_child(row);
 
         // A row wider than the limit wraps, which makes it taller.

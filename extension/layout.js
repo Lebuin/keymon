@@ -37,6 +37,8 @@ export function placeRows(monitor, sizes, overlay, direction) {
 // relative sizes in markup, so it gets an absolute size, in 1024ths of a point.
 const OVERSIZED_SYMBOLS = {'⌫': 0.7};
 const PANGO_UNITS_PER_PX = 1024 * 72 / 96;
+// An absolute line height isn't in points, despite what Pango's documentation says.
+const PANGO_UNITS_PER_ABSOLUTE_PX = 1024;
 
 // The pieces of text in a run's one box. Modifier run parts are joined by a plus.
 export function runItems(run) {
@@ -54,7 +56,9 @@ export function runItems(run) {
 // in front. A zero-width space would let a long word wrap past an empty first line.
 // When a box wraps, word joiners keep each item whole, zero-width
 // spaces allow a break after breakAfter items, and no hyphen appears at a break.
-export function textMarkup(items, colors, textSize, lineHeight = 1) {
+// lineHeight is in px. A factor would scale the tallest font on the line, so a symbol
+// from a taller fallback font would make the box bigger.
+export function textMarkup(items, colors, textSize, lineHeight) {
     const content = items.map(({text, held, muted, breakAfter}) => {
         const whole = [...text].join('\u2060');
         const escaped = text in OVERSIZED_SYMBOLS
@@ -64,5 +68,5 @@ export function textMarkup(items, colors, textSize, lineHeight = 1) {
         const span = color ? `<span foreground="${color}">${escaped}</span>` : escaped;
         return breakAfter ? `${span}\u200b` : span;
     }).join('');
-    return `<span insert_hyphens="false" line_height="${lineHeight}">\u2060${content}</span>`;
+    return `<span insert_hyphens="false" line_height="${Math.round(lineHeight * PANGO_UNITS_PER_ABSOLUTE_PX)}">\u2060${content}</span>`;
 }
