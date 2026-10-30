@@ -256,8 +256,8 @@ The ring looks the same whether or not a button is held.
 ### Click drawing
 
 - On every press transition, a small drawing of a mouse fades in at the pointer's position, drawn under the ring, over `mouse.click.duration_ms`. It finishes fading in even if the button is released first, so a quick click still shows.
-- The ring is the mouse's outline. A 1 px line in the ring's stroke colour runs from the bottom about a third of the way up, and a scroll wheel with fully rounded bottom corners, also a 1 px outline, runs on from there to the top.
-- The part for the pressed button is filled with `mouse.click.fill_color`: the area left of the line and wheel, the wheel, or the area right of them. Its opacity comes only from that colour, so the drawing fades in to full opacity.
+- The ring is the mouse's outline. A 2 px line in the ring's stroke colour runs from the bottom about a third of the way up, and a scroll wheel with fully rounded bottom corners, also a 2 px outline, runs on from there to the top.
+- The part for the pressed button is filled with `mouse.click.fill_color`: the area left of the line and wheel, the wheel, or the area right of them. Its opacity comes only from that colour, so the drawing fades in to full opacity. The fill, the lines, and the ring don't overlap, so translucent colours don't double up.
 - With `mouse.click.left_style` set to `ripple`, a left press instead starts a filled disc in `mouse.click.fill_color`, whose radius goes from 0 to the ring's radius over `mouse.click.ripple_duration_ms`. It follows the pointer while held and while fading, and on release it fades out over the same time, still growing if it hasn't finished.
 - While its button is held, the drawing stays and follows the pointer. This is the held state.
 - On release, it fades out over `mouse.click.duration_ms`, still following the pointer. Both fades use ease-out easing by default.

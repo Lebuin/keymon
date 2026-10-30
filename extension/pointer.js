@@ -132,7 +132,7 @@ export class PointerDisplay {
 
     // A mouse with this button filled in. Its lines take the ring's colour.
     _makeDrawing(button, x, y) {
-        const {radius, stroke_color: strokeColor} = this._config.ring;
+        const {radius, stroke_width: strokeWidth, stroke_color: strokeColor} = this._config.ring;
         const fill = cairoColor(this._config.click.fill_color);
         const line = cairoColor(strokeColor);
         const drawing = new St.DrawingArea({
@@ -147,7 +147,7 @@ export class PointerDisplay {
         });
         drawing.connect('repaint', area => {
             const cr = area.get_context();
-            drawMouse(cr, radius, button, fill, line);
+            drawMouse(cr, radius, strokeWidth, button, fill, line);
             cr.$dispose();
         });
         return drawing;
