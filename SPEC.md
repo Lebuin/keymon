@@ -329,7 +329,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `box.animation_ms` | `150` | Time a new box takes to fade, slide, and zoom in, the others to make room, and a removed box to fade out. `0` turns all of these off |
 | `box.enter_scale` | `0` | Size a new box zooms in from, as a fraction of its full size. `1` doesn't zoom |
 | `box.animate_first` | `false` | Whether a new box also animates when no other box is on screen |
-| `box.max_width` | `800` | Maximum box width in px, including padding. A box is always one line, and wider content loses its start, with an ellipsis in its place, so the newest text stays visible |
+| `box.max_width` | `800` | Maximum box width in px, including padding. A box is always one line, and wider content loses its start, which fades out over the 16 px at the box's left edge, so the newest text stays visible |
 | `text.color` | `"#ffffff"` | Text colour |
 | `text.held_color` | `"#ffcc00"` | Optional text colour for keys currently held. `null` uses `text.color` |
 | `text.muted_color` | `"rgba(255,255,255,0.8)"` | Text colour for modifier runs, and for special keys and the space symbol in a text run. `null` uses `text.color` |

@@ -22,45 +22,53 @@ function pangoColor(css) {
     return `#${hex.join('')}`;
 }
 
+const FADE_PX = 16;
+
+// Fades in from nothing at the left edge, over the fraction of the width in fade. Colours
+// here are premultiplied, so all four channels scale together.
+const FADE_SHADER = `
+uniform sampler2D tex;
+uniform float fade;
+void main() {
+    vec4 color = texture2D(tex, cogl_tex_coord_in[0].st);
+    cogl_color_out = color * cogl_color_in.a * clamp(cogl_tex_coord_in[0].s / fade, 0.0, 1.0);
+}`;
+
 export class KeyOverlay {
     // guard(callback) runs what this class starts by itself, outside render().
     constructor(config, guard) {
         this._config = config;
         this._guard = guard;
         this._slideId = 0; // The wait for a row to finish sliding in.
-        this._stack = []; // Newest first: {id, row, size, fading, targetY}.
+        this._stack = []; // Newest first: {id, row, clip, label, fade, size, fading, targetY}.
         this._colors = {
             held: pangoColor(config.text.held_color),
             muted: pangoColor(config.text.muted_color),
         };
-        // St sets the line alignment from the style, so it has to be set here.
         this._boxStyle =
-            `text-align: ${config.overlay.anchor_h};` +
             `background-color: ${config.box.background};` +
-            `padding: ${config.box.padding_v}px ${config.box.padding_h}px;` +
-            `border-radius: ${config.box.corner_radius}px;` +
+            `border-radius: ${config.box.corner_radius}px;`;
+        this._textStyle =
             `font-family: ${config.text.font}; font-weight: ${config.text.weight};` +
             `font-size: ${config.text.size}px;` +
             `color: ${config.text.color};`;
 
         this._root = new St.Widget({reactive: false, can_focus: false, track_hover: false});
         Main.layoutManager.addTopChrome(this._root, {affectsInputRegion: false});
-        this._reducePadding();
+        this._measureLine();
     }
 
-    // Extra line height also goes above the first line and below the last, so the
-    // padding gives that back to keep the configured space around the text.
-    _reducePadding() {
-        const {padding_h: paddingH, padding_v: paddingV} = this._config.box;
-        const probe = new St.Label({text: 'x', style: this._boxStyle});
+    // Extra line height also goes above and below the line, so the padding gives that
+    // back to keep the configured space around the text.
+    _measureLine() {
+        const probe = new St.Label({text: 'x', style: this._textStyle});
         this._root.add_child(probe);
-        const line = probe.get_preferred_height(-1)[1] - 2 * paddingV;
+        const line = probe.get_preferred_height(-1)[1];
         probe.destroy();
 
         this._lineHeight = line * this._config.text.line_height;
         const extra = (this._lineHeight - line) / 2;
-        this._paddingV = Math.max(Math.round(paddingV - extra), 0);
-        this._boxStyle += `padding: ${this._paddingV}px ${paddingH}px;`;
+        this._paddingV = Math.max(Math.round(this._config.box.padding_v - extra), 0);
     }
 
     destroy() {
@@ -184,39 +192,52 @@ export class KeyOverlay {
         return Main.layoutManager.primaryMonitor;
     }
 
+    // A box, with a clipped layer the size of the box holding the text. The layer can
+    // fade without affecting the background.
     _makeEntry(run, maxWidth) {
-        const row = new St.Label({
-            reactive: false,
-            can_focus: false,
-            track_hover: false,
-            style: this._boxStyle,
-        });
-        row.clutter_text.set({
-            line_wrap: false,
-            ellipsize: Pango.EllipsizeMode.START,
-        });
+        const inert = {reactive: false, can_focus: false, track_hover: false};
+        const row = new St.Widget({...inert, style: this._boxStyle});
+        const clip = new St.Widget({...inert, clip_to_allocation: true});
+        const label = new St.Label({...inert, style: this._textStyle});
+        label.clutter_text.set({line_wrap: false, ellipsize: Pango.EllipsizeMode.NONE});
+        clip.add_child(label);
+        row.add_child(clip);
         this._root.add_child(row);
-        const entry = {id: run.id, row, size: null, fading: false, targetY: null};
+
+        const fade = new Clutter.ShaderEffect({shader_type: Clutter.ShaderType.FRAGMENT_SHADER});
+        fade.set_shader_source(FADE_SHADER);
+        fade.set_uniform_value('tex', 0);
+        fade.enabled = false;
+        clip.add_effect(fade);
+
+        const entry = {id: run.id, row, clip, label, fade, size: null, fading: false, targetY: null};
         this._updateEntry(entry, run, maxWidth);
         return entry;
     }
 
     _updateEntry(entry, run, maxWidth) {
-        const {row} = entry;
+        const {row, clip, label, fade} = entry;
+        const {padding_h: paddingH} = this._config.box;
         const items = runItems(run);
         const markup = shown => textMarkup(shown, this._colors, this._config.text.size, this._lineHeight);
 
-        // A row wider than the limit loses its start, so the newest text stays visible.
         // Twice, because a change of text is first laid out with the attributes of the old
         // markup, and that layout stays cached: a newly added ⌫ would measure at full size.
-        row.clutter_text.set_markup(markup(restingItems(items)));
-        row.clutter_text.set_markup(markup(restingItems(items)));
-        row.set_size(-1, -1);
-        const width = Math.min(row.get_preferred_width(-1)[1], maxWidth);
+        label.clutter_text.set_markup(markup(restingItems(items)));
+        label.clutter_text.set_markup(markup(restingItems(items)));
+        const textWidth = label.get_preferred_width(-1)[1];
+
+        const width = Math.min(textWidth + 2 * paddingH, maxWidth);
         const height = boxHeight(this._lineHeight, this._paddingV);
         row.set_size(width, height);
+        clip.set_size(width, height);
         entry.size = {width, height};
 
-        row.clutter_text.set_markup(markup(items));
+        // A box too narrow for its text keeps the end of it, and the start fades out.
+        label.set_position(width - paddingH - textWidth, this._paddingV);
+        fade.enabled = textWidth + 2 * paddingH > maxWidth;
+        fade.set_uniform_value('fade', FADE_PX / width);
+
+        label.clutter_text.set_markup(markup(items));
     }
 }
