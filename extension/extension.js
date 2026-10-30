@@ -21,9 +21,6 @@ import {PointerDisplay} from './pointer.js';
 import {DisplayState} from './state.js';
 
 const FALLBACK_LAYOUT = 'us';
-// Applications repeat a little slower than GNOME's setting asks for. Measured with
-// dev/measure-repeat.py: 28.43 ms at a setting of 27 ms.
-const REPEAT_LAG_MS = 1.2;
 // A connection that lasted this long was working, so the next retry waits the least.
 const STABLE_CONNECTION_MS = 30000;
 
@@ -154,7 +151,7 @@ export default class KeymonExtension extends Extension {
             return;
         this._destroyDisplays();
         this._makeDisplays();
-        this._state.setConfig(this._withRepeat(config.keys));
+        this._state.setConfig(this._withRepeatDelay(config.keys));
         this._update();
     }
 
@@ -184,7 +181,7 @@ export default class KeymonExtension extends Extension {
         // Direct scanout of a fullscreen window would bypass our actors.
         Meta.disable_unredirect_for_display(global.display);
 
-        this._state = new DisplayState(this._withRepeat(this._config.keys), now);
+        this._state = new DisplayState(this._withRepeatDelay(this._config.keys), now);
         this._resolver = new KeyResolver();
         this._keymap = Clutter.get_default_backend().get_default_seat().get_keymap();
         this._makeDisplays();
@@ -201,18 +198,13 @@ export default class KeymonExtension extends Extension {
         });
     }
 
-    // The compositor gives applications these same values, so repeats shown here
-    // keep pace with what they type. The helper's kernel repeat events would not.
-    // A value in the config wins, for matching an application that lags behind.
-    _withRepeat(keys) {
+    // The compositor gives applications this same value, so it tells when a held key
+    // has started typing more than one character. A value in the config wins.
+    _withRepeatDelay(keys) {
         const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.peripherals.keyboard'});
         if (!settings.get_boolean('repeat'))
             return {...keys, repeat_delay_ms: null};
-        return {
-            ...keys,
-            repeat_delay_ms: keys.repeat_delay_ms ?? settings.get_uint('delay'),
-            repeat_interval_ms: keys.repeat_interval_ms ?? settings.get_uint('repeat-interval') + REPEAT_LAG_MS,
-        };
+        return {...keys, repeat_delay_ms: keys.repeat_delay_ms ?? settings.get_uint('delay')};
     }
 
     // Each step runs even if an earlier one fails, so nothing stays on screen.

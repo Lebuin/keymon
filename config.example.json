@@ -33,7 +33,6 @@
     "run_visible_ms": 3000,
     "run_gap_ms": 2000,
     "repeat_delay_ms": null,
-    "repeat_interval_ms": null,
     "shift_delay_ms": 200,
     "max_runs": 5,
     "stack_direction": "up",

@@ -125,7 +125,6 @@ const RULES = {
     'keys.run_visible_ms': POSITIVE,
     'keys.run_gap_ms': SIZE,
     'keys.repeat_delay_ms': [orNull(isSize), 'a number of 0 or more, or null'],
-    'keys.repeat_interval_ms': [orNull(isPositive), 'a number above 0, or null'],
     'keys.shift_delay_ms': SIZE,
     'keys.max_runs': [value => Number.isInteger(value) && value >= 1, 'a whole number of 1 or more'],
     'keys.stack_direction': [isOneOf('up', 'down'), 'up or down'],

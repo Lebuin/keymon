@@ -157,7 +157,7 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 - A modifier is only coloured in the newest row. With Ctrl held after Ctrl+C and Ctrl+V, `Ctrl` is coloured on the `Ctrl` `v` row only.
 - Any other held key is coloured on whichever row shows it.
 - In a modifier run, each part is coloured separately, and the `+` keeps `text.color`.
-- In a text run, only the characters or tokens whose keys are held are coloured, and of a repeating key only the latest one, and this takes priority over `text.muted_color`. The box needs per-character styling, and text must be escaped if this uses Pango markup.
+- In a text run, only the characters or tokens whose keys are held are coloured, and this takes priority over `text.muted_color`. The box needs per-character styling, and text must be escaped if this uses Pango markup.
 - The colour reverts as soon as the key is released, including for left and right variants once neither is held.
 - A box is measured without held colours, so that they never change its size. Its height depends only on its number of lines, so that a symbol from another font or at another size doesn't change it.
 
@@ -176,11 +176,9 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 
 - A **printable key** is any key with visible text, including Space and keypad digits. A printable key that isn't chorded joins the current text run.
 - Text comes from each key's locked label. Space appears as `keys.space_symbol` so that trailing spaces stay visible.
-- A held key repeats at the rate from GNOME's keyboard settings (`delay` and `repeat-interval` in `org.gnome.desktop.peripherals.keyboard`), read at switch-on, unless `keys.repeat_delay_ms` or `keys.repeat_interval_ms` overrides them. Compositor repeat is what applications follow. The kernel's repeat events have their own rate, so the helper still ignores them.
-  - Only a typed character repeats, and only the most recently pressed key. Releasing that key ends the repeat, and a repeat doesn't restart for a key still held.
-  - A repeat uses the label locked at press, and a chorded key doesn't repeat. A modifier that shows ends the repeat.
-  - A held Backspace erases one character, because a display can't reliably follow how far an application has really erased.
-  - Repeats are predicted from those settings and can drift from an application that handles them differently.
+- A held key shows one character, however long it is held, because repeats predicted by a display drift from what an application really types. The kernel's repeat events have their own rate, so the helper still ignores them.
+- A typed character whose key is held for the repeat delay is marked as repeated, because the application now has more of it than the one shown. The delay is `delay` in `org.gnome.desktop.peripherals.keyboard`, read at switch-on, unless `keys.repeat_delay_ms` overrides it. It counts only for the most recently pressed key, and not for a chorded key or after a modifier shows, as with compositor repeat. If GNOME's key repeat is off, nothing is marked.
+- A held Backspace erases one character, because a display can't reliably follow how far an application has really erased.
 - Keys held at the same time merge. Holding A and S shows one box, `as`.
 - A new text run starts when any of these is true:
   - There is no current text run, for example because the last one expired or a modifier run came after it.
@@ -195,7 +193,7 @@ A special key that isn't chorded goes into the text run as a token. It counts as
 - **Token display:** Enter shows as `⏎`, Tab as `⇥`, and arrows as their arrows. Other keys show their label in angle quotes, such as `‹Esc›` or `‹F5›`, so they can't be mistaken for typed text. `keys.names` overrides change the label inside the quotes.
 - **Enter:** it joins the current run and ends it. Typing `hello`, Enter, `world` shows `hello⏎` and `world` on two rows. An Enter with no current run shows a run containing just `⏎`.
 - **Backspace:** if the last item in the current run is a character, it erases that character, including a space or dead key.
-  - If the last item is a token, or there is no current run, Backspace is shown as a `⌫` token. In `abc←`, it gives `abc←⌫`.
+  - If the last item is a token or a character marked as repeated, or there is no current run, Backspace is shown as a `⌫` token. In `abc←`, it gives `abc←⌫`.
   - If erasing leaves a run empty, that run is removed, and the next key starts a new run. Backspace never reaches back into an earlier row.
   - A Backspace after the `keys.run_gap_ms` gap starts a new run showing `⌫`, so it doesn't erase from the old run.
   - Backspace only edits what keymon displays, and may not match the text in the application.
@@ -341,8 +339,7 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `text.weight` | `"normal"` | Font weight: `normal`, `bold`, or a number from `100` to `900` |
 | `keys.run_visible_ms` | `3000` | How long a run stays visible |
 | `keys.run_gap_ms` | `2000` | Time without typing before a new text run starts |
-| `keys.repeat_delay_ms` | `null` | Delay before a held key repeats. `null` uses GNOME's setting |
-| `keys.repeat_interval_ms` | `null` | Time between repeats, which can be fractional. `null` uses GNOME's setting plus 1.4 ms, the measured lag of applications |
+| `keys.repeat_delay_ms` | `null` | Time a key is held before its character is marked as repeated. `null` uses GNOME's setting |
 | `keys.shift_delay_ms` | `200` | Time for a key to follow Shift or AltGr before it counts as a modifier |
 | `keys.max_runs` | `5` | Maximum rows in the stack |
 | `keys.stack_direction` | `"up"` | Direction older runs move: `up` or `down` |
@@ -408,7 +405,7 @@ tests/
 5. Ctrl down, `c`, `v`, Ctrl up shows two rows, `Ctrl+c` and `Ctrl+v`. A following `m` starts a separate text run, and an earlier text run keeps its row until its timer ends.
 6. Shift+1 typed quickly appends `!` to the current run, with no `Shift` row. Shift alone shows a `Shift` row after 200 ms. Pressing `1` while that row is held replaces it with `!`, not merged into any earlier run. Shift+Tab shows `Shift+⇥`.
 7. Shift+1 shows `!` on `us`. The same physical key shows the correct character after switching to `be`.
-8. Holding a key adds characters at the same rate as the focused application, and holding Backspace erases one character. With `text.held_color` set, the latest character of the held key uses the colour until release, and the rest of the run keeps `text.color`.
+8. Holding a key shows one character. After the repeat delay, Backspace no longer erases it and shows `⌫` instead, and holding Backspace erases one character. With `text.held_color` set, the character of the held key uses the colour until release, and the rest of the run keeps `text.color`.
 9. Holding 1 then pressing Shift leaves the label as `1`.
 
 **Mouse**

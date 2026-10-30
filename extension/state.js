@@ -12,7 +12,6 @@ export const DEFAULT_KEYS = {
     run_gap_ms: 2000,
     shift_delay_ms: 200,
     repeat_delay_ms: null, // Null means keys don't repeat.
-    repeat_interval_ms: null,
     max_runs: 5,
     space_symbol: '␣',
     names: {},
@@ -89,7 +88,7 @@ export class DisplayState {
         this._pendingDeadline = null;
         this._absorbed = new Set(); // Held soft modifiers that went into typing.
         this._inheritedId = null; // For the run replacing a row in place.
-        this._repeat = null; // The key repeating, as {press, next}.
+        this._repeat = null; // The key that may start repeating, as {press, at}.
     }
 
     keyDown(code, key) {
@@ -164,7 +163,7 @@ export class DisplayState {
         if (this._pendingDeadline !== null)
             deadlines.push(this._pendingDeadline);
         if (this._repeat)
-            deadlines.push(this._repeat.next);
+            deadlines.push(this._repeat.at);
         return deadlines.length > 0 ? Math.min(...deadlines) : null;
     }
 
@@ -188,11 +187,9 @@ export class DisplayState {
     }
 
     _textView(run) {
-        // A repeating key has many items, and only its latest one counts as held.
-        const latest = new Map(run.items.map(item => [item.press, item]));
         const items = run.items.map(item => ({
             text: item.text,
-            held: latest.get(item.press) === item && this._isHeld(item.press),
+            held: this._isHeld(item.press),
             muted: item.muted,
             breakAfter: item.breakAfter,
         }));
@@ -360,7 +357,7 @@ export class DisplayState {
 
     _backspace(press) {
         const run = this._currentTextRun();
-        if (!run || run.items.at(-1).token) {
+        if (!run || run.items.at(-1).token || run.items.at(-1).repeated) {
             this._appendToText({text: '⌫', token: true, muted: true, press}, press);
             return;
         }
@@ -406,24 +403,27 @@ export class DisplayState {
         press.run = run;
     }
 
-    // Only typed characters repeat, as long as they aren't chorded.
+    // Only typed characters repeat in an application, as long as they aren't chorded.
     _repeats(press) {
         return press.key.class === 'printable' && !this._hardHeld();
     }
 
     _startRepeat(press) {
-        const {repeat_delay_ms: delay, repeat_interval_ms: interval} = this._keys;
-        this._repeat = press && delay !== null && interval > 0
-            ? {press, next: this._now() + delay}
-            : null;
+        const {repeat_delay_ms: delay} = this._keys;
+        this._repeat = press && delay !== null ? {press, at: this._now() + delay} : null;
     }
 
-    // Catches up on the repeats due by now.
-    _runRepeats(now) {
-        while (this._repeat && now >= this._repeat.next) {
-            this._repeat.next += this._keys.repeat_interval_ms;
-            this._appendTyped(this._repeat.press);
+    // A key held this long has typed more than the one character shown, so Backspace
+    // can no longer erase it from the display.
+    _markRepeated(now) {
+        if (!this._repeat || now < this._repeat.at)
+            return;
+        const {press} = this._repeat;
+        for (const item of press.run.items) {
+            if (item.press === press)
+                item.repeated = true;
         }
+        this._repeat = null;
     }
 
     _runHeld(run) {
@@ -449,7 +449,7 @@ export class DisplayState {
         const now = this._now();
         if (this._pendingDeadline !== null && now >= this._pendingDeadline)
             this._showModifiers([]);
-        this._runRepeats(now);
+        this._markRepeated(now);
         this._updateTimers();
         this._runs = this._runs.filter(
             run => run.paused || now - run.timerStart < this._keys.run_visible_ms);

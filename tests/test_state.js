@@ -851,40 +851,30 @@ test('a run keeps its id, and a row replaced in place passes it on', () => {
     eq(d.state.runs()[0].id, shiftId, 'and took over its id');
 });
 
-const REPEAT = {repeat_delay_ms: 350, repeat_interval_ms: 30};
+const REPEAT = {repeat_delay_ms: 350};
 
-test('a held character repeats after the delay, at the interval', () => {
-    const d = setup(REPEAT);
-    d.down(K.a);
-    d.wait(349);
-    eq(d.shown(), ['a'], 'not before the delay');
-    d.wait(1);
-    eq(d.shown(), ['aa'], 'at the delay');
-    eq(d.state.nextDeadline(), d.now() + 30, 'the next one is due');
-    d.wait(90);
-    eq(d.shown(), ['aaaaa'], 'catches up');
-    d.up(K.a);
-    d.wait(100);
-    eq(d.shown(), ['aaaaa'], 'stops at release');
-});
-
-test('a fractional interval does not drift', () => {
-    const d = setup({repeat_delay_ms: 350, repeat_interval_ms: 28.43});
-    d.down(K.a);
-    d.wait(350);
-    for (let i = 0; i < 3; i++)
-        d.wait(950);
-    eq(d.shown()[0].length, 102, 'the press, the first repeat, and 100 more');
-});
-
-test('only the latest occurrence of a repeating key is marked', () => {
+test('a held character shows once, and is marked at the delay', () => {
     const d = setup(REPEAT);
     d.tap(K.s);
     d.down(K.a);
-    d.wait(380);
-    eq(d.shownHeld(), ['saa*a*'], 'the last one');
+    d.wait(349);
+    eq(d.state.nextDeadline(), d.now() + 1, 'the mark is due');
+    d.tap(K.backspace);
+    eq(d.shown(), ['s'], 'before the delay, Backspace erases it');
     d.up(K.a);
-    eq(d.shownHeld(), ['saaa'], 'none after release');
+
+    const e = setup(REPEAT);
+    e.tap(K.s);
+    e.down(K.a);
+    e.wait(1000);
+    eq(e.shown(), ['sa'], 'one character, however long it is held');
+    eq(e.shownHeld(), ['s*a*'], 'and it stays coloured');
+    e.up(K.a);
+    eq(e.shownHeld(), ['sa'], 'until release');
+    e.tap(K.backspace);
+    eq(e.shown(), ['sa⌫'], 'after the delay, Backspace shows a token');
+    e.tap(K.backspace);
+    eq(e.shown(), ['sa⌫⌫'], 'and keeps doing so');
 });
 
 test('ids are not reused after a reset', () => {
@@ -896,56 +886,54 @@ test('ids are not reused after a reset', () => {
     eq(d.state.runs()[0].id !== id, true, 'a new id');
 });
 
-test('only the newest key repeats', () => {
+test('only the newest key is marked', () => {
     const d = setup(REPEAT);
     d.down(K.a);
     d.down(K.s);
     d.wait(350);
-    eq(d.shown(), ['ass'], 's repeats');
-    d.up(K.a);
-    d.wait(30);
-    eq(d.shown(), ['asss'], 'releasing the other key changes nothing');
     d.up(K.s);
-    d.down(K.a);
-    d.down(K.s);
-    d.up(K.s);
-    d.wait(400);
-    eq(d.shown(), ['asssas'], 'releasing the newest stops it, as in applications');
+    d.tap(K.backspace);
+    eq(d.shown(), ['as⌫'], 's is marked');
+
+    const e = setup(REPEAT);
+    e.down(K.a);
+    e.down(K.s);
+    e.up(K.s);
+    e.wait(1000);
+    e.tap(K.backspace);
+    eq(e.shown(), ['a'], 'releasing the newest key stops the wait, as in applications');
 });
 
-test('a repeated character keeps its locked label', () => {
-    const d = setup(REPEAT);
-    d.down(K.shift);
-    d.down(K.bang);
-    d.wait(350);
-    eq(d.shown(), ['!!'], 'typed under Shift');
-    d.up(K.shift);
-    d.wait(30);
-    eq(d.shown(), ['!!!'], 'still the same character');
-});
-
-test('a chorded key does not repeat, and a hard modifier stops a repeat', () => {
+test('a chorded key is not marked, and a hard modifier stops the wait', () => {
     const d = setup(REPEAT);
     d.down(K.ctrl);
     d.down(K.c);
     d.wait(1000);
-    eq(d.shown(), ['Ctrl c'], 'one row');
+    eq(d.state.nextDeadline(), null, 'no mark is due');
     d.up(K.c);
     d.up(K.ctrl);
 
     const e = setup(REPEAT);
     e.down(K.a);
-    e.wait(350);
     e.down(K.ctrl);
-    e.wait(1000);
-    eq(e.shown(), ['Ctrl', 'aa'], 'no more characters');
+    eq(e.state.nextDeadline() > e.now() + 350, true, 'the wait has ended');
 });
 
-test('special keys do not repeat', () => {
+test('a character released before the delay stays erasable', () => {
     const d = setup(REPEAT);
-    d.down(K.esc);
+    d.tap(K.a);
     d.wait(1000);
-    eq(d.shown(), ['‹Esc›'], 'one token');
+    d.tap(K.backspace);
+    eq(d.shown(), [], 'erased');
+});
+
+test('without a delay nothing is marked', () => {
+    const d = setup();
+    d.down(K.a);
+    d.wait(1000);
+    d.up(K.a);
+    d.tap(K.backspace);
+    eq(d.shown(), [], 'erased');
 });
 
 test('a held Backspace erases one character', () => {
@@ -954,7 +942,7 @@ test('a held Backspace erases one character', () => {
     d.down(K.backspace);
     d.wait(1000);
     eq(d.shown(), ['as'], 'only the press erases');
-    eq(d.state.nextDeadline() > d.now() + 1000, true, 'no repeat is due');
+    eq(d.state.nextDeadline() > d.now() + 1000, true, 'no mark is due');
 });
 
 test('a long run has no character limit', () => {
@@ -984,7 +972,7 @@ test('reset clears runs, held keys and pending modifiers', () => {
     const e = setup(REPEAT);
     e.down(K.a);
     e.state.reset();
-    eq(e.state.nextDeadline(), null, 'no repeat is due');
+    eq(e.state.nextDeadline(), null, 'no mark is due');
 });
 
 console.log(`${passed} checks passed, ${failed} failed`);
