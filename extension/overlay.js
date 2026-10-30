@@ -77,7 +77,7 @@ export class KeyOverlay {
     // the gap when it is done. Runs that would leave the monitor are removed from the
     // state as well, so they don't come back when newer runs expire, and fade the same
     // way. A new run waits while the previous one is still sliding in, and the first
-    // run on an empty screen appears at once.
+    // run on an empty screen appears at once unless box.animate_first is set.
     render(state, slide = false) {
         this._state = state;
         const monitor = this._monitor();
@@ -99,8 +99,8 @@ export class KeyOverlay {
         const animate = this._config.box.animation_ms > 0;
         const turns = !animate ? waiting.length : this._slideId ? 0 : 1;
         const entering = waiting.slice(0, turns).map(run => this._makeEntry(run, maxWidth));
-        // With nothing on screen there is nothing to make room for, so it just appears.
-        const first = this._stack.length === 0;
+        // With nothing on screen there is nothing to make room for, so it can just appear.
+        const appears = this._stack.length === 0 && !this._config.box.animate_first;
         for (const entry of entering)
             this._stack.unshift(entry);
 
@@ -113,7 +113,7 @@ export class KeyOverlay {
         }
 
         const positions = placeRows(monitor, this._stack.map(entry => entry.size), overlay, direction, false);
-        if (animate && entering.length > 0 && !first) {
+        if (animate && entering.length > 0 && !appears) {
             this._slideIn(entering[0], positions[0], overlay.row_spacing, direction);
             slide = true;
         }

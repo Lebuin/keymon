@@ -29,7 +29,8 @@ const DEFAULTS = {
         padding_v: 8,
         corner_radius: 12,
         animation_ms: 150,
-        enter_scale: 0.5,
+        enter_scale: 0,
+        animate_first: false,
         max_width: 800,
     },
     text: {
@@ -110,6 +111,7 @@ const RULES = {
     'box.padding_v': SIZE,
     'box.corner_radius': SIZE,
     'box.animation_ms': SIZE,
+    'box.animate_first': [value => typeof value === 'boolean', 'true or false'],
     'box.enter_scale': [value => isNumber(value) && value >= 0 && value <= 1, 'a number from 0 to 1'],
     'box.max_width': POSITIVE,
     'text.color': COLOR,

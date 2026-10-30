@@ -164,7 +164,7 @@ If `text.held_color` is set, the label of any key that is physically held uses t
 ### Stack
 
 - The newest run sits at the anchor point. A new run moves the older ones by one row, in the direction set by `keys.stack_direction` (`up` or `down`).
-- A row added while no other row is on screen, not even one fading out, appears at once with no animation.
+- A row added while no other row is on screen, not even one fading out, appears at once with no animation, unless `box.animate_first` is set.
 - Any other new row fades in over `box.animation_ms` while sliding to the anchor point from the place one row further along the other way, and the older rows slide to their new places at the same time.
 - A new row also zooms in from `box.enter_scale` over the same time. It zooms from the edge it aligns to (`overlay.anchor_h`, the middle of the row when `center`) and from its top edge when `keys.stack_direction` is `up`, or its bottom edge when `down`. Right aligned and `up` zooms from the top right corner.
 - A run added during that animation waits, and its row starts when the animation ends, one at a time in order. Its text stays up to date while it waits, and a run that ends or is removed before its turn never appears. `0` shows new rows at once.
@@ -329,7 +329,8 @@ The file is `~/.config/keymon/config.json`. JSON is used because GJS can parse i
 | `box.padding_v` | `8` | Vertical padding in px |
 | `box.corner_radius` | `12` | Corner radius in px |
 | `box.animation_ms` | `150` | Time a new box takes to fade, slide, and zoom in, the others to make room, and a removed box to fade out. `0` turns all of these off |
-| `box.enter_scale` | `0.5` | Size a new box zooms in from, as a fraction of its full size. `1` doesn't zoom |
+| `box.enter_scale` | `0` | Size a new box zooms in from, as a fraction of its full size. `1` doesn't zoom |
+| `box.animate_first` | `false` | Whether a new box also animates when no other box is on screen |
 | `box.max_width` | `800` | Maximum box width in px, including padding. Wider content wraps onto more lines |
 | `text.color` | `"#ffffff"` | Text colour |
 | `text.held_color` | `"#ffcc00"` | Optional text colour for keys currently held. `null` uses `text.color` |

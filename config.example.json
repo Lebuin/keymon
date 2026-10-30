@@ -16,7 +16,8 @@
     "padding_v": 8,
     "corner_radius": 12,
     "animation_ms": 150,
-    "enter_scale": 0.5,
+    "enter_scale": 0,
+    "animate_first": false,
     "max_width": 800
   },
   "text": {
