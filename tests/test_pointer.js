@@ -53,7 +53,7 @@ function testConfig() {
     const defaults = mergeConfig({}).mouse;
     eq(defaults.ring, {radius: 28, stroke_width: 3, stroke_color: '#ffcc00', fill_color: 'rgba(0,0,0,0)'},
         'ring defaults');
-    eq(defaults.click, {fill_color: 'rgba(255,204,0,0.8)', duration_ms: 300, left_style: 'drawing', easing: 'ease-out'}, 'click defaults');
+    eq(defaults.click, {fill_color: 'rgba(255,204,0,0.8)', duration_ms: 300, hold_ms: 100, left_style: 'drawing', easing: 'ease-out'}, 'click defaults');
 
     const {mouse} = mergeConfig({mouse: {ring: {radius: 40}}});
     eq(mouse.ring.radius, 40, 'a nested key is used');

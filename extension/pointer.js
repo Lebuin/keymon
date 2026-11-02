@@ -3,6 +3,7 @@
 // clock of the monitor the ring is on.
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import Graphene from 'gi://Graphene';
 import St from 'gi://St';
 
@@ -30,7 +31,9 @@ export class PointerDisplay {
         this._config = config;
         this._onPress = onPress;
         this._held = new Map(); // Button name to the drawing it holds up.
-        this._appearing = new Set(); // Drawings fading in, and ripples growing.
+        this._appearing = new Set(); // Drawings and ripples not yet done appearing and holding.
+        this._holds = new Set(); // Timeouts of those holding.
+        this._guard = guard;
         this._lastX = this._lastY = null;
         this._buttons = new ButtonTracker(global.get_pointer()[2]);
 
@@ -73,6 +76,9 @@ export class PointerDisplay {
         this._drawings = null;
         this._held.clear();
         this._appearing.clear();
+        for (const id of this._holds)
+            GLib.source_remove(id);
+        this._holds.clear();
     }
 
     _onFrame() {
@@ -107,15 +113,15 @@ export class PointerDisplay {
         this._fadeIn(drawing);
     }
 
-    // A disc filling the inside of the ring, scaled up from nothing. It finishes growing
-    // even if the button is already up, and only then fades. Its holder has the ring's
+    // A disc filling the inside of the ring, scaled up from nothing while it fades in. It
+    // finishes growing even if the button is already up, and only then fades out. Its holder has the ring's
     // size, so that it moves like a drawing. The disc stops at the ring's stroke, so that
     // translucent colours don't double up.
     _startRipple(x, y) {
         const {radius, stroke_width: strokeWidth} = this._config.ring;
         const {fill_color: fillColor, duration_ms: duration, easing} = this._config.click;
         const inert = {reactive: false, can_focus: false, track_hover: false};
-        const ripple = new St.Widget({...inert, x, y, width: radius * 2, height: radius * 2});
+        const ripple = new St.Widget({...inert, x, y, width: radius * 2, height: radius * 2, opacity: 0});
         const inner = Math.max(radius - strokeWidth, 0);
         const disc = new St.Widget({
             ...inert,
@@ -132,16 +138,13 @@ export class PointerDisplay {
         this._drawings.add_child(ripple);
         this._held.set('left', ripple);
         this._appearing.add(ripple);
+        ripple.ease({opacity: 255, duration, mode: EASING[easing]});
         disc.ease({
             scale_x: 1,
             scale_y: 1,
             duration,
             mode: EASING[easing],
-            onComplete: () => {
-                this._appearing.delete(ripple);
-                if (![...this._held.values()].includes(ripple))
-                    this._fadeOut(ripple);
-            },
+            onComplete: () => this._hold(ripple),
         });
     }
 
@@ -176,12 +179,28 @@ export class PointerDisplay {
             opacity: 255,
             duration,
             mode: EASING[easing],
-            onComplete: () => {
-                this._appearing.delete(drawing);
-                if (![...this._held.values()].includes(drawing))
-                    this._fadeOut(drawing);
-            },
+            onComplete: () => this._hold(drawing),
         });
+    }
+
+    // Stays at full opacity for a moment, even if the button is already up.
+    _hold(drawing) {
+        const done = () => {
+            this._appearing.delete(drawing);
+            if (![...this._held.values()].includes(drawing))
+                this._fadeOut(drawing);
+        };
+        const {hold_ms: hold} = this._config.click;
+        if (hold <= 0) {
+            done();
+            return;
+        }
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, hold, () => {
+            this._holds.delete(id);
+            this._guard(done);
+            return GLib.SOURCE_REMOVE;
+        });
+        this._holds.add(id);
     }
 
     _fadeOut(drawing) {
