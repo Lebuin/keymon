@@ -56,9 +56,8 @@ const DEFAULTS = {
         },
         click: {
             fill_color: 'rgba(255,204,0,0.8)',
-            duration_ms: 150,
+            duration_ms: 300,
             left_style: 'drawing',
-            ripple_duration_ms: 300,
             easing: 'ease-out',
         },
     },
@@ -138,7 +137,6 @@ const RULES = {
     'mouse.click.fill_color': COLOR,
     'mouse.click.duration_ms': SIZE,
     'mouse.click.left_style': [isOneOf('drawing', 'ripple'), 'drawing or ripple'],
-    'mouse.click.ripple_duration_ms': SIZE,
     'mouse.click.easing': [isOneOf('linear', 'ease-in', 'ease-out', 'ease-in-out'), 'linear, ease-in, ease-out, or ease-in-out'],
 };
 

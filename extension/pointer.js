@@ -30,7 +30,7 @@ export class PointerDisplay {
         this._config = config;
         this._onPress = onPress;
         this._held = new Map(); // Button name to the drawing it holds up.
-        this._appearing = new Set(); // Drawings still fading in.
+        this._appearing = new Set(); // Drawings fading in, and ripples growing.
         this._lastX = this._lastY = null;
         this._buttons = new ButtonTracker(global.get_pointer()[2]);
 
@@ -107,27 +107,42 @@ export class PointerDisplay {
         this._fadeIn(drawing);
     }
 
-    // A disc at the ring's full size, scaled up from nothing. On release it fades, and
-    // finishes growing if it hasn't yet.
+    // A disc filling the inside of the ring, scaled up from nothing. It finishes growing
+    // even if the button is already up, and only then fades. Its holder has the ring's
+    // size, so that it moves like a drawing. The disc stops at the ring's stroke, so that
+    // translucent colours don't double up.
     _startRipple(x, y) {
-        const {radius} = this._config.ring;
-        const {fill_color: fillColor, ripple_duration_ms: duration, easing} = this._config.click;
-        const ripple = new St.Widget({
-            reactive: false,
-            can_focus: false,
-            track_hover: false,
-            x,
-            y,
-            width: radius * 2,
-            height: radius * 2,
+        const {radius, stroke_width: strokeWidth} = this._config.ring;
+        const {fill_color: fillColor, duration_ms: duration, easing} = this._config.click;
+        const inert = {reactive: false, can_focus: false, track_hover: false};
+        const ripple = new St.Widget({...inert, x, y, width: radius * 2, height: radius * 2});
+        const inner = Math.max(radius - strokeWidth, 0);
+        const disc = new St.Widget({
+            ...inert,
+            x: radius - inner,
+            y: radius - inner,
+            width: inner * 2,
+            height: inner * 2,
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
             scale_x: 0,
             scale_y: 0,
-            style: `background-color: ${fillColor}; border-radius: ${radius}px;`,
+            style: `background-color: ${fillColor}; border-radius: ${inner}px;`,
         });
+        ripple.add_child(disc);
         this._drawings.add_child(ripple);
         this._held.set('left', ripple);
-        ripple.ease({scale_x: 1, scale_y: 1, duration, mode: EASING[easing]});
+        this._appearing.add(ripple);
+        disc.ease({
+            scale_x: 1,
+            scale_y: 1,
+            duration,
+            mode: EASING[easing],
+            onComplete: () => {
+                this._appearing.delete(ripple);
+                if (![...this._held.values()].includes(ripple))
+                    this._fadeOut(ripple);
+            },
+        });
     }
 
     // A mouse with this button filled in. Its lines take the ring's colour.
@@ -169,8 +184,8 @@ export class PointerDisplay {
         });
     }
 
-    _fadeOut(drawing, duration = this._config.click.duration_ms) {
-        const {easing} = this._config.click;
+    _fadeOut(drawing) {
+        const {duration_ms: duration, easing} = this._config.click;
         drawing.ease({
             opacity: 0,
             duration,
@@ -184,11 +199,7 @@ export class PointerDisplay {
         if (!drawing)
             return;
         this._held.delete(button);
-        if (drawing instanceof St.DrawingArea) {
-            if (!this._appearing.has(drawing))
-                this._fadeOut(drawing);
-        } else {
-            this._fadeOut(drawing, this._config.click.ripple_duration_ms);
-        }
+        if (!this._appearing.has(drawing))
+            this._fadeOut(drawing);
     }
 }
