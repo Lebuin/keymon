@@ -67,6 +67,11 @@ export class KeyOverlay {
         this._root = new St.Widget({reactive: false, can_focus: false, track_hover: false});
         Main.layoutManager.addTopChrome(this._root, {affectsInputRegion: false});
         this._measureLine();
+        // Measures text without highlights. Doing that on a visible label makes it lose
+        // its highlight at its next layout.
+        this._ruler = new St.Label({reactive: false, can_focus: false, track_hover: false,
+            style: this._textStyle, opacity: 0});
+        this._root.add_child(this._ruler);
     }
 
     // Extra line height also goes above and below the line, so the padding gives that
@@ -245,9 +250,9 @@ export class KeyOverlay {
 
         // Twice, because a change of text is first laid out with the attributes of the old
         // markup, and that layout stays cached: a newly added ⌫ would measure at full size.
-        label.clutter_text.set_markup(markup(restingItems(items)));
-        label.clutter_text.set_markup(markup(restingItems(items)));
-        const textWidth = label.get_preferred_width(-1)[1];
+        this._ruler.clutter_text.set_markup(markup(restingItems(items)));
+        this._ruler.clutter_text.set_markup(markup(restingItems(items)));
+        const textWidth = this._ruler.get_preferred_width(-1)[1];
 
         const width = Math.min(textWidth + 2 * paddingH, maxWidth);
         const height = boxHeight(this._lineHeight, this._paddingV);
@@ -263,6 +268,7 @@ export class KeyOverlay {
         fade.enabled = textWidth + 2 * paddingH > maxWidth;
         fade.set_uniform_value('fade', FADE_PX / width);
 
+        label.clutter_text.set_markup(markup(items));
         label.clutter_text.set_markup(markup(items));
     }
 }
