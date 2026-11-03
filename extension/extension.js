@@ -23,6 +23,7 @@ import {DisplayState} from './state.js';
 const FALLBACK_LAYOUT = 'us';
 // A connection that lasted this long was working, so the next retry waits the least.
 const STABLE_CONNECTION_MS = 30000;
+const CURSOR_SIZE_WHILE_ON = 32;
 
 function log(message) {
     console.log(`keymon: ${message}`);
@@ -45,11 +46,14 @@ export default class KeymonExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._inputSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.input-sources'});
+        this._interfaceSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         this._on = false;
         this._session ??= 0; // Tells a switch-on still loading from a newer one.
         this._tables ??= new Map(); // Layout and options to a promise of the table.
         this._config ??= mergeConfig({}); // The last valid config.
 
+        // Logging out or a crash while on doesn't call disable(), so this catches up.
+        this._restoreCursorSize();
         this._reloadConfig();
         Main.wm.addKeybinding(
             'toggle-shortcut',
@@ -88,6 +92,7 @@ export default class KeymonExtension extends Extension {
         Main.layoutManager.disconnect(this._monitorsChangedId);
         Main.wm.removeKeybinding('toggle-shortcut');
 
+        this._interfaceSettings = null;
         this._inputSettings = null;
         this._settings = null;
     }
@@ -180,6 +185,7 @@ export default class KeymonExtension extends Extension {
 
         // Direct scanout of a fullscreen window would bypass our actors.
         Meta.disable_unredirect_for_display(global.display);
+        this._enlargeCursor();
 
         this._state = new DisplayState(this._withRepeatDelay(this._config.keys), now);
         this._resolver = new KeyResolver();
@@ -196,6 +202,19 @@ export default class KeymonExtension extends Extension {
             if (session === this._session)
                 this._fail(e);
         });
+    }
+
+    _enlargeCursor() {
+        this._settings.set_int('saved-cursor-size', this._interfaceSettings.get_int('cursor-size'));
+        this._interfaceSettings.set_int('cursor-size', CURSOR_SIZE_WHILE_ON);
+    }
+
+    _restoreCursorSize() {
+        const saved = this._settings.get_int('saved-cursor-size');
+        if (saved <= 0)
+            return;
+        this._interfaceSettings.set_int('cursor-size', saved);
+        this._settings.set_int('saved-cursor-size', 0);
     }
 
     // The compositor gives applications this same value, so it tells when a held key
@@ -223,6 +242,7 @@ export default class KeymonExtension extends Extension {
             () => this._removeSource('_timeoutId'),
             () => this._removeSource('_retryId'),
             () => Meta.enable_unredirect_for_display(global.display),
+            () => this._restoreCursorSize(),
             () => this._destroyDisplays(),
             () => this._syncIndicator(),
         ];
